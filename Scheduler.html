@@ -1,0 +1,3845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src blob: data:; media-src blob: data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'none'">
+<title>Socials Auto Scheduler</title>
+<style>
+:root{
+  --bg:#0b0d12; --panel:#12151d; --panel-2:#171b25; --panel-3:#1d2230;
+  --border:#232936; --border-2:#2e3650;
+  --text:#e8ebf2; --muted:#8b93a7; --muted-2:#5d6478;
+  --accent:#6d5dfc; --accent-2:#c44bd1;
+  --ig:#e1306c; --fb:#1877f2; --tt:#2ee8e0; --yt:#ff4444; --custom:#9aa4b8;
+  --draft:#8b93a7; --ready:#e8b339; --scheduled:#5b8def; --published:#3ecf8e; --failed:#ff5d5d; --overdue:#ff9f43;
+  --ok:#3ecf8e; --warn:#e8b339; --err:#ff5d5d;
+  --radius:12px; --radius-sm:8px;
+  --shadow:0 10px 30px rgba(0,0,0,.45);
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;font-size:inherit}
+input,textarea,select{font-family:inherit;font-size:inherit;color:var(--text);background:var(--panel-3);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px;outline:none}
+input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+textarea{resize:vertical;min-height:90px;line-height:1.5}
+::placeholder{color:var(--muted-2)}
+a{color:var(--accent)}
+.hidden{display:none!important}
+.muted{color:var(--muted)}
+.small{font-size:12px}
+.mono{font-variant-numeric:tabular-nums}
+
+/* ---------- layout ---------- */
+#app{display:flex;flex-direction:column;height:100vh}
+header.topbar{display:flex;align-items:center;gap:14px;padding:10px 18px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:16px;letter-spacing:.2px}
+.logo .glyph{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-2));display:flex;align-items:center;justify-content:center;font-size:15px;color:#fff;box-shadow:0 4px 14px rgba(109,93,252,.4)}
+.topbar .spacer{flex:1}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--panel-2);color:var(--text);font-weight:500;transition:background .15s,border-color .15s;white-space:nowrap}
+.btn:hover{background:var(--panel-3);border-color:var(--border-2)}
+.btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent-2));border:none;color:#fff;font-weight:600;box-shadow:0 4px 14px rgba(109,93,252,.35)}
+.btn.primary:hover{filter:brightness(1.1)}
+.btn.danger{color:var(--err);border-color:rgba(255,93,93,.35)}
+.btn.danger:hover{background:rgba(255,93,93,.12)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn.ghost:hover{background:var(--panel-2)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.small{padding:4px 10px;font-size:12.5px}
+.iconbtn{width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;border:1px solid var(--border);background:var(--panel-2);font-size:15px}
+.iconbtn:hover{background:var(--panel-3)}
+
+.seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.seg button{padding:7px 14px;color:var(--muted);font-weight:500}
+.seg button.active{background:var(--panel-3);color:var(--text);font-weight:600}
+.navdate{display:flex;align-items:center;gap:6px}
+.navdate .label{font-weight:700;font-size:15px;min-width:150px;text-align:center}
+
+.subbar{display:flex;align-items:center;gap:10px;padding:8px 18px;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.subbar select{padding:6px 9px;font-size:13px}
+.subbar input[type=search]{padding:6px 10px;font-size:13px;width:200px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;font-size:12px;font-weight:600;border:1px solid var(--border);background:var(--panel-2)}
+.chip .dot{width:8px;height:8px;border-radius:50%}
+.storage-chip{cursor:pointer}
+.storage-chip.connected{border-color:rgba(62,207,142,.4);color:var(--published)}
+.storage-chip.browser{border-color:rgba(232,179,57,.4);color:var(--ready)}
+
+/* ---------- due banner ---------- */
+#dueBanner{display:flex;align-items:center;gap:12px;padding:10px 18px;background:linear-gradient(90deg,rgba(255,159,67,.16),rgba(255,159,67,.05));border-bottom:1px solid rgba(255,159,67,.35)}
+#dueBanner .pulse{width:10px;height:10px;border-radius:50%;background:var(--overdue);animation:pulse 1.6s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,159,67,.5)}70%{box-shadow:0 0 0 9px rgba(255,159,67,0)}100%{box-shadow:0 0 0 0 rgba(255,159,67,0)}}
+
+/* ---------- calendar ---------- */
+main{flex:1;overflow:auto;padding:14px 18px}
+.cal-month{display:grid;grid-template-columns:repeat(7,1fr);gap:7px;min-width:980px}
+.cal-month .dow{text-align:center;color:var(--muted);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;padding:2px 0}
+.cal-cell{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);min-height:128px;padding:7px;display:flex;flex-direction:column;gap:5px;transition:border-color .15s}
+.cal-cell.other{opacity:.45}
+.cal-cell.today{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.cal-cell.dragover{border-color:var(--accent-2);background:var(--panel-2)}
+.cal-cell .cellhead{display:flex;align-items:center;justify-content:space-between}
+.cal-cell .daynum{font-weight:700;font-size:13px;color:var(--muted)}
+.cal-cell.today .daynum{color:var(--accent);background:rgba(109,93,252,.18);border-radius:7px;padding:1px 7px}
+.cal-cell .addday{opacity:0;width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:15px}
+.cal-cell:hover .addday{opacity:1}
+.cal-cell .addday:hover{background:var(--panel-3);color:var(--text)}
+.cal-cell .more{font-size:11.5px;color:var(--muted);font-weight:600;padding:2px 6px;border-radius:6px}
+.cal-cell .more:hover{background:var(--panel-3);color:var(--text)}
+.bt-hint{margin-top:auto;font-size:10.5px;color:var(--muted-2);display:flex;gap:5px;flex-wrap:wrap}
+.bt-hint span{cursor:pointer;padding:0 4px;border-radius:4px}
+.bt-hint span:hover{background:var(--panel-3);color:var(--muted)}
+
+/* post card */
+.pcard{display:flex;gap:7px;align-items:center;background:var(--panel-2);border:1px solid var(--border);border-left:3px solid var(--draft);border-radius:9px;padding:5px 7px;cursor:pointer;transition:transform .1s,border-color .15s;overflow:hidden}
+.pcard:hover{border-color:var(--border-2);transform:translateY(-1px)}
+.pcard.s-draft{border-left-color:var(--draft)}
+.pcard.s-ready{border-left-color:var(--ready)}
+.pcard.s-scheduled{border-left-color:var(--scheduled)}
+.pcard.s-published{border-left-color:var(--published)}
+.pcard.s-failed{border-left-color:var(--failed)}
+.pcard.s-overdue{border-left-color:var(--overdue);background:rgba(255,159,67,.08)}
+.pcard.dragging{opacity:.45}
+.pcard .thumb{width:34px;height:34px;border-radius:7px;background:var(--panel-3);flex:none;object-fit:cover;display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:15px;overflow:hidden}
+.pcard .thumb img{width:100%;height:100%;object-fit:cover}
+.pcard .meta{min-width:0;flex:1}
+.pcard .row1{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);flex-wrap:nowrap;min-width:0}
+.pcard .row1 .time{font-weight:700;color:var(--text);white-space:nowrap;flex:none}
+.pcard .title{font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pdots{display:inline-flex;gap:3px;flex:none}
+.pdot{width:8px;height:8px;border-radius:50%;flex:none}
+.pdot.instagram{background:var(--ig)}.pdot.facebook{background:var(--fb)}.pdot.tiktok{background:var(--tt)}.pdot.youtube{background:var(--yt)}.pdot.custom{background:var(--custom)}
+.labelpill{font-size:10px;font-weight:700;padding:0 6px;border-radius:99px;color:#0b0d12;flex:none;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* week view */
+.cal-week{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;min-width:980px}
+.wk-col{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:8px;display:flex;flex-direction:column;gap:6px;min-height:300px}
+.wk-col.today{border-color:var(--accent)}
+.wk-col.dragover{border-color:var(--accent-2)}
+.wk-col .colhead{display:flex;align-items:baseline;gap:7px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.wk-col .colhead .d{font-weight:700;font-size:15px}
+.wk-col .colhead .m{color:var(--muted);font-size:12px}
+.wk-col .pcard .title{white-space:normal}
+.wk-card-cap{font-size:11px;color:var(--muted);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+
+/* list view */
+.listview{display:flex;flex-direction:column;gap:14px;max-width:980px;margin:0 auto}
+.lv-group h3{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px;font-weight:700}
+.lv-row{display:flex;gap:12px;align-items:center;background:var(--panel);border:1px solid var(--border);border-left:4px solid var(--draft);border-radius:var(--radius);padding:10px 14px;cursor:pointer;margin-bottom:7px}
+.lv-row:hover{border-color:var(--border-2)}
+.lv-row.s-draft{border-left-color:var(--draft)}.lv-row.s-ready{border-left-color:var(--ready)}.lv-row.s-scheduled{border-left-color:var(--scheduled)}.lv-row.s-published{border-left-color:var(--published)}.lv-row.s-failed{border-left-color:var(--failed)}.lv-row.s-overdue{border-left-color:var(--overdue)}
+.lv-row .thumb{width:52px;height:52px;border-radius:9px;background:var(--panel-3);flex:none;display:flex;align-items:center;justify-content:center;color:var(--muted-2);overflow:hidden}
+.lv-row .thumb img{width:100%;height:100%;object-fit:cover}
+.lv-row .main{flex:1;min-width:0}
+.lv-row .cap{color:var(--muted);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:560px}
+.lv-row .when{text-align:right;flex:none}
+.lv-row .when .t{font-weight:700}
+.statusbadge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:2px 9px;border-radius:99px;flex:none}
+.sb-draft{background:rgba(139,147,167,.16);color:var(--draft)}
+.sb-ready{background:rgba(232,179,57,.16);color:var(--ready)}
+.sb-scheduled{background:rgba(91,141,239,.16);color:var(--scheduled)}
+.sb-published{background:rgba(62,207,142,.16);color:var(--published)}
+.sb-failed{background:rgba(255,93,93,.16);color:var(--failed)}
+.sb-overdue{background:rgba(255,159,67,.18);color:var(--overdue)}
+.empty{color:var(--muted);text-align:center;padding:60px 20px}
+.empty .big{font-size:38px;margin-bottom:10px}
+
+/* ---------- drawer (composer) ---------- */
+.scrim{position:fixed;inset:0;background:rgba(4,6,10,.62);backdrop-filter:blur(2px);z-index:40;opacity:0;pointer-events:none;transition:opacity .18s}
+.scrim.open{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(760px,96vw);background:var(--panel);border-left:1px solid var(--border);z-index:50;transform:translateX(102%);transition:transform .22s ease;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.drawer.open{transform:translateX(0)}
+.drawer .dhead{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--border)}
+.drawer .dhead h2{font-size:16px;flex:1}
+.drawer .dbody{flex:1;overflow-y:auto;padding:18px 20px;display:flex;flex-direction:column;gap:16px}
+.drawer .dfoot{display:flex;align-items:center;gap:9px;padding:13px 20px;border-top:1px solid var(--border);flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:5px}
+.field>label{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.fieldrow{display:flex;gap:12px;flex-wrap:wrap}
+.fieldrow .field{flex:1;min-width:150px}
+.counter{font-size:11.5px;color:var(--muted)}
+.counter .over{color:var(--err);font-weight:700}
+.counter .warn{color:var(--warn)}
+
+.platgrid{display:flex;gap:8px;flex-wrap:wrap}
+.plat-toggle{display:flex;align-items:center;gap:8px;padding:8px 13px;border-radius:10px;border:1px solid var(--border);background:var(--panel-2);font-weight:600;transition:all .12s}
+.plat-toggle .pdot{width:10px;height:10px}
+.plat-toggle.on{border-color:var(--border-2);background:var(--panel-3);box-shadow:0 0 0 1px var(--border-2)}
+.plat-toggle:not(.on){opacity:.55}
+.plat-toggle.on.instagram{box-shadow:0 0 0 1px var(--ig)}
+.plat-toggle.on.facebook{box-shadow:0 0 0 1px var(--fb)}
+.plat-toggle.on.tiktok{box-shadow:0 0 0 1px var(--tt)}
+.plat-toggle.on.youtube{box-shadow:0 0 0 1px var(--yt)}
+
+.besttimes{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.bt-chip{font-size:11.5px;padding:3px 9px;border-radius:99px;border:1px solid var(--border);background:var(--panel-2);color:var(--muted);cursor:pointer;display:inline-flex;gap:5px;align-items:center}
+.bt-chip:hover{border-color:var(--accent);color:var(--text)}
+.bt-chip .star{color:var(--ready)}
+
+.vtabs{display:flex;gap:4px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.vtabs button{padding:8px 13px;border-radius:8px 8px 0 0;color:var(--muted);font-weight:600;border-bottom:2px solid transparent;display:inline-flex;gap:7px;align-items:center}
+.vtabs button.active{color:var(--text);border-bottom-color:var(--accent);background:var(--panel-2)}
+.vtabs .editedmark{width:6px;height:6px;border-radius:50%;background:var(--accent-2)}
+.vpanel{display:flex;flex-direction:column;gap:11px;padding-top:11px}
+.formatrow{display:flex;gap:6px;flex-wrap:wrap}
+.fmt{padding:5px 11px;border-radius:99px;border:1px solid var(--border);background:var(--panel-2);font-size:12.5px;font-weight:600;color:var(--muted)}
+.fmt.on{border-color:var(--accent);color:var(--text);background:rgba(109,93,252,.14)}
+
+.hashbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.hash-chip{font-size:12px;padding:3px 10px;border-radius:99px;border:1px solid var(--border);background:var(--panel-2);cursor:pointer}
+.hash-chip:hover{border-color:var(--accent)}
+
+.mediarow{display:flex;gap:10px;flex-wrap:wrap}
+.mediacard{position:relative;width:108px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--panel-3)}
+.mediacard .mthumb{width:100%;height:76px;object-fit:cover;display:block;background:#000}
+.mediacard .mname{font-size:10.5px;color:var(--muted);padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mediacard .mdel{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:6px;background:rgba(0,0,0,.65);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center}
+.dropzone{border:2px dashed var(--border-2);border-radius:var(--radius);padding:18px;text-align:center;color:var(--muted);cursor:pointer;transition:all .15s}
+.dropzone:hover,.dropzone.dragover{border-color:var(--accent);background:rgba(109,93,252,.07);color:var(--text)}
+
+.vmsgs{display:flex;flex-direction:column;gap:6px}
+.vmsg{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;padding:8px 11px;border-radius:9px}
+.vmsg.error{background:rgba(255,93,93,.1);color:#ffb3b3;border:1px solid rgba(255,93,93,.3)}
+.vmsg.warn{background:rgba(232,179,57,.09);color:#f0d491;border:1px solid rgba(232,179,57,.28)}
+.vmsg.info{background:rgba(91,141,239,.09);color:#b9cdf5;border:1px solid rgba(91,141,239,.25)}
+.vmsg .fix{margin-left:auto;flex:none}
+
+/* ---------- modals ---------- */
+.modal-wrap{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:rgba(4,6,10,.66);opacity:0;pointer-events:none;transition:opacity .15s}
+.modal-wrap.open{opacity:1;pointer-events:auto}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:16px;width:min(640px,94vw);max-height:88vh;display:flex;flex-direction:column;box-shadow:var(--shadow)}
+.modal .mhead{display:flex;align-items:center;padding:15px 20px;border-bottom:1px solid var(--border)}
+.modal .mhead h2{font-size:16px;flex:1}
+.modal .mbody{padding:18px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.modal .mfoot{display:flex;justify-content:flex-end;gap:9px;padding:13px 20px;border-top:1px solid var(--border)}
+
+/* post-now modal */
+.pn-plat{border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;display:flex;flex-direction:column;gap:9px}
+.pn-plat .pn-head{display:flex;align-items:center;gap:9px;font-weight:700}
+.pn-plat .pn-cap{background:var(--panel-3);border-radius:9px;padding:9px 11px;font-size:12.5px;color:var(--muted);max-height:90px;overflow:auto;white-space:pre-wrap}
+.pn-plat .pn-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pn-plat.done{opacity:.55;border-color:rgba(62,207,142,.4)}
+
+/* settings */
+.set-section{display:flex;flex-direction:column;gap:9px;padding-bottom:14px;border-bottom:1px solid var(--border)}
+.set-section:last-child{border-bottom:none}
+.set-section h3{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+.tagrow{display:flex;gap:7px;flex-wrap:wrap}
+.tagrow .chip button{margin-left:4px;color:var(--muted)}
+.tagrow .chip button:hover{color:var(--err)}
+
+/* toasts */
+#toasts{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast{background:var(--panel-3);border:1px solid var(--border-2);border-radius:10px;padding:10px 18px;font-weight:600;box-shadow:var(--shadow);animation:toastin .2s ease}
+.toast.ok{border-color:rgba(62,207,142,.5)}
+.toast.err{border-color:rgba(255,93,93,.5)}
+@keyframes toastin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+/* welcome */
+.welcome{max-width:660px;margin:40px auto;background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:34px;display:flex;flex-direction:column;gap:18px}
+.welcome h1{font-size:22px}
+.welcome .opt{display:flex;gap:14px;border:1px solid var(--border);border-radius:14px;padding:16px;cursor:pointer;transition:border-color .15s}
+.welcome .opt:hover{border-color:var(--accent)}
+.welcome .opt .ic{font-size:26px}
+.welcome .opt h3{font-size:15px;margin-bottom:3px}
+.welcome .opt p{color:var(--muted);font-size:13px}
+
+kbd{background:var(--panel-3);border:1px solid var(--border-2);border-radius:5px;padding:1px 6px;font-size:11px;font-family:inherit}
+.helprow{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12.5px}
+details.advanced summary{cursor:pointer;color:var(--muted);font-weight:600;font-size:13px}
+details.advanced{border:1px solid var(--border);border-radius:10px;padding:10px 14px}
+details.advanced[open]{padding-bottom:14px}
+.progressbar{height:4px;border-radius:99px;background:var(--panel-3);overflow:hidden}
+.progressbar>div{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));transition:width .2s}
+@media (max-width:760px){
+  .cal-month,.cal-week{min-width:760px}
+  .subbar input[type=search]{width:130px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="logo"><span class="glyph">&#9992;</span><span>Socials Auto Scheduler</span></div>
+    <div class="seg" id="viewSeg">
+      <button data-view="month" class="active">Month</button>
+      <button data-view="week">Week</button>
+      <button data-view="list">List</button>
+    </div>
+    <div class="navdate">
+      <button class="iconbtn" id="navPrev" title="Previous">&#8249;</button>
+      <div class="label" id="navLabel">June 2026</div>
+      <button class="iconbtn" id="navNext" title="Next">&#8250;</button>
+      <button class="btn small" id="navToday">Today</button>
+    </div>
+    <div class="spacer"></div>
+    <span class="chip storage-chip browser" id="storageChip" title="Storage mode">&#128190; Browser storage</span>
+    <span id="cloudChip" style="display:none"></span>
+    <button class="iconbtn" id="settingsBtn" title="Settings">&#9881;</button>
+    <button class="btn primary" id="newPostBtn">+ New Post</button>
+  </header>
+
+  <div class="subbar">
+    <select id="fltPlatform" title="Filter by platform"><option value="">All platforms</option></select>
+    <select id="fltStatus" title="Filter by status">
+      <option value="">All statuses</option>
+      <option value="draft">Draft</option>
+      <option value="ready">Ready</option>
+      <option value="scheduled">Scheduled</option>
+      <option value="published">Published</option>
+      <option value="failed">Failed</option>
+      <option value="overdue">Overdue</option>
+    </select>
+    <select id="fltLabel" title="Filter by label"><option value="">All labels</option></select>
+    <input type="search" id="fltSearch" placeholder="Search posts&hellip;">
+    <span class="muted small" id="countInfo"></span>
+    <div class="spacer" style="flex:1"></div>
+    <button class="btn small" id="backupBtn" title="Download a full backup (.zip)">&#11015; Backup</button>
+  </div>
+
+  <div id="dueBanner" class="hidden">
+    <span class="pulse"></span>
+    <span id="dueText" style="font-weight:600"></span>
+    <button class="btn small primary" id="dueReview">Review &amp; post</button>
+    <span class="spacer" style="flex:1"></span>
+    <button class="iconbtn" id="dueDismiss" title="Dismiss until next due post">&times;</button>
+  </div>
+
+  <main id="main"></main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<!-- composer drawer -->
+<aside class="drawer" id="drawer" aria-label="Post editor">
+  <div class="dhead">
+    <h2 id="drawerTitle">New post</h2>
+    <span class="statusbadge sb-draft" id="drawerStatus">Draft</span>
+    <button class="iconbtn" id="drawerClose" title="Close (Esc)">&times;</button>
+  </div>
+  <div class="dbody">
+    <div class="field">
+      <label for="fTitle">Internal title</label>
+      <input id="fTitle" placeholder="e.g. July 4th promo video" maxlength="120">
+    </div>
+
+    <div class="field">
+      <label>Platforms</label>
+      <div class="platgrid" id="platGrid"></div>
+    </div>
+
+    <div class="fieldrow">
+      <div class="field">
+        <label for="fDate">Date</label>
+        <input type="date" id="fDate">
+      </div>
+      <div class="field">
+        <label for="fTime">Time</label>
+        <input type="time" id="fTime">
+      </div>
+      <div class="field" style="flex:2">
+        <label>Best times for this day <span class="muted" style="text-transform:none;font-weight:400">(tap to use)</span></label>
+        <div class="besttimes" id="bestTimes"><span class="muted small">Pick platforms &amp; date first</span></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Content type</label>
+      <div class="formatrow" id="formatRow"></div>
+    </div>
+
+    <div class="field">
+      <label for="fCaption">Caption <span class="muted" style="text-transform:none;font-weight:400">&mdash; used for every platform unless customized below</span></label>
+      <textarea id="fCaption" rows="5" placeholder="Write your caption&hellip; #hashtags welcome"></textarea>
+      <div class="counter" id="capCounters"></div>
+      <div class="hashbar" id="hashBar"></div>
+    </div>
+
+    <div class="field">
+      <label>Per-platform customization</label>
+      <div class="vtabs" id="vTabs"></div>
+      <div class="vpanel" id="vPanel"></div>
+    </div>
+
+    <div class="field">
+      <label>Media</label>
+      <div class="mediarow" id="mediaRow"></div>
+      <div class="dropzone" id="dropzone">Drop a video or image here, or click to choose a file</div>
+      <input type="file" id="fileInput" class="hidden" accept="image/*,video/*" multiple>
+    </div>
+
+    <div class="fieldrow">
+      <div class="field">
+        <label for="fLabel">Label</label>
+        <select id="fLabel"><option value="">No label</option></select>
+      </div>
+      <div class="field" style="flex:2">
+        <label for="fNotes">Notes (private)</label>
+        <input id="fNotes" placeholder="Anything to remember about this post">
+      </div>
+    </div>
+
+    <div class="vmsgs" id="vMsgs"></div>
+  </div>
+  <div class="dfoot">
+    <button class="btn danger" id="deleteBtn">Delete</button>
+    <button class="btn" id="duplicateBtn" title="Copy this post to a new draft">Duplicate</button>
+    <span class="spacer" style="flex:1"></span>
+    <span class="muted small" id="saveHint"></span>
+    <button class="btn" id="saveDraftBtn">Save draft</button>
+    <button class="btn" id="saveReadyBtn" title="Content finished, waiting to be scheduled">Mark ready</button>
+    <button class="btn primary" id="scheduleBtn">Schedule</button>
+  </div>
+</aside>
+
+<!-- generic modal -->
+<div class="modal-wrap" id="modalWrap">
+  <div class="modal" id="modalBox">
+    <div class="mhead"><h2 id="modalTitle"></h2><button class="iconbtn" id="modalClose">&times;</button></div>
+    <div class="mbody" id="modalBody"></div>
+    <div class="mfoot" id="modalFoot"></div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+<input type="file" id="importInput" class="hidden" accept=".json,.zip">
+
+<script>
+/* ============================================================
+   CORE — constants, utilities, timezone math, validation, zip.
+   Pure logic only (no DOM). Node-testable via module.exports.
+   ============================================================ */
+'use strict';
+
+var SCHEMA_VERSION = 1;
+
+var BUILTIN_PLATFORMS = [
+  { id: 'instagram', name: 'Instagram', color: '#e1306c', short: 'IG' },
+  { id: 'facebook',  name: 'Facebook',  color: '#1877f2', short: 'FB' },
+  { id: 'tiktok',    name: 'TikTok',    color: '#2ee8e0', short: 'TT' },
+  { id: 'youtube',   name: 'YouTube',   color: '#ff4444', short: 'YT' }
+];
+
+var STATUSES = ['draft', 'ready', 'scheduled', 'published', 'failed'];
+
+var FORMATS = [
+  { id: 'reel',     name: 'Reel / Short video', icon: '🎬' },
+  { id: 'video',    name: 'Video (long)',       icon: '📽️' },
+  { id: 'photo',    name: 'Photo',              icon: '📷' },
+  { id: 'carousel', name: 'Carousel / album',   icon: '🏞️' },
+  { id: 'story',    name: 'Story',              icon: '⏱️' },
+  { id: 'text',     name: 'Text only',          icon: '📝' }
+];
+
+/* Character limits & truncation points (verified June 2026) */
+var LIMITS = {
+  instagram: { caption: 2200, truncate: 125, hashMax: 30, hashRec: 5 },
+  facebook:  { caption: 63206, truncate: 477 },
+  tiktok:    { caption: 2200, truncate: 100 },
+  youtube:   { title: 100, desc: 5000, tags: 500 }
+};
+
+/* Which master formats each platform can publish */
+var PLATFORM_FORMATS = {
+  instagram: ['reel', 'video', 'photo', 'carousel', 'story'],
+  facebook:  ['reel', 'video', 'photo', 'carousel', 'story', 'text'],
+  tiktok:    ['reel', 'video', 'photo', 'carousel'],
+  youtube:   ['reel', 'video']
+};
+
+/* GitHub single-file limit (autopilot media travels in the repo) */
+var GITHUB_FILE_LIMIT = 95 * 1024 * 1024;
+var AUTOPILOT_PLATFORMS = ['instagram', 'facebook', 'tiktok'];
+var DUE_GRACE_MIN = 60; /* minutes past schedule while still "due now" rather than "overdue" */
+
+/* Best posting times per platform per weekday (0=Sun..6=Sat).
+   Consensus of Sprout Social 2026, Buffer 2026 & Hootsuite studies. */
+var BEST_TIMES = {
+  instagram: [ [{h:12}], [{h:14}], [{h:13},{h:17}], [{h:12,top:1},{h:18}], [{h:9,top:1},{h:12}], [{h:11}], [{h:10}] ],
+  facebook:  [ [{h:10}], [{h:12}], [{h:9},{h:12}], [{h:9,top:1},{h:13}], [{h:9,top:1},{h:14}], [{h:10}], [{h:9}] ],
+  tiktok:    [ [{h:9,top:1},{h:13}], [{h:13},{h:15}], [{h:14,top:1},{h:17}], [{h:13},{h:19}], [{h:13},{h:17}], [{h:15,top:1},{h:17}], [{h:9,top:1},{h:13}] ],
+  youtube:   [ [{h:10,top:1}], [{h:14}], [{h:14}], [{h:15}], [{h:16}], [{h:16,top:1},{h:18}], [{h:10},{h:18,top:1}] ]
+};
+
+/* ---------------- small utils ---------------- */
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+function uid() {
+  return 'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function slugify(s) {
+  s = String(s || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+  s = s.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40).replace(/-+$/, '');
+  return s || 'post';
+}
+
+function fmtBytes(n) {
+  if (n == null || isNaN(n)) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1048576) return (n / 1024).toFixed(0) + ' KB';
+  if (n < 1073741824) return (n / 1048576).toFixed(1) + ' MB';
+  return (n / 1073741824).toFixed(2) + ' GB';
+}
+
+function fmtDuration(sec) {
+  if (sec == null || isNaN(sec)) return '';
+  sec = Math.round(sec);
+  var m = Math.floor(sec / 60), s = sec % 60;
+  return m > 0 ? (m + 'm ' + (s ? s + 's' : '')).trim() : s + 's';
+}
+
+function countChars(s) { /* count by code points, like the platforms do */
+  return s ? Array.from(String(s)).length : 0;
+}
+
+function extractHashtags(s) {
+  if (!s) return [];
+  var m = String(s).match(/#[^\s#.,!?;:()\[\]{}'"<>]+/gu);
+  return m || [];
+}
+
+/* ---------------- local date helpers ---------------- */
+function localISO(y, mo, d, h, mi) {
+  return y + '-' + pad2(mo) + '-' + pad2(d) + 'T' + pad2(h) + ':' + pad2(mi);
+}
+
+function parseLocalISO(s) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(s || ''));
+  if (!m) return null;
+  var p = { y: +m[1], mo: +m[2], d: +m[3], h: +m[4], mi: +m[5] };
+  if (p.mo < 1 || p.mo > 12 || p.d < 1 || p.d > 31 || p.h > 23 || p.mi > 59) return null;
+  return p;
+}
+
+function dateKeyOf(localIsoStr) { return String(localIsoStr || '').slice(0, 10); }
+
+/* ---------------- timezone math (no libraries) ---------------- */
+var _dtfCache = {};
+function _dtfFor(tz) {
+  if (!_dtfCache[tz]) {
+    _dtfCache[tz] = new Intl.DateTimeFormat('en-US', {
+      timeZone: tz, hour12: false,
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+  }
+  return _dtfCache[tz];
+}
+
+/* What is the tz's UTC offset (ms) at a given UTC instant */
+function tzOffsetMs(utcMs, tz) {
+  var parts = _dtfFor(tz).formatToParts(new Date(utcMs));
+  var o = {};
+  for (var i = 0; i < parts.length; i++) o[parts[i].type] = parts[i].value;
+  var h = o.hour === '24' ? 0 : +o.hour; /* some engines emit 24:xx for midnight */
+  var asUtc = Date.UTC(+o.year, +o.month - 1, +o.day, h, +o.minute, +o.second);
+  return asUtc - Math.floor(utcMs / 1000) * 1000;
+}
+
+/* Convert wall-clock time in tz -> UTC ms.
+   DST-gap times roll forward; ambiguous fall-back times use first occurrence. */
+function zonedToUtcMs(localIsoStr, tz) {
+  var p = parseLocalISO(localIsoStr);
+  if (!p) return NaN;
+  var guess = Date.UTC(p.y, p.mo - 1, p.d, p.h, p.mi, 0);
+  var off1 = tzOffsetMs(guess, tz);
+  var off2 = tzOffsetMs(guess - off1, tz);
+  if (off1 === off2) return guess - off1;
+  var cand1 = guess - off1;
+  var cand2 = guess - off2;
+  var valid1 = tzOffsetMs(cand1, tz) === off1;
+  var valid2 = tzOffsetMs(cand2, tz) === off2;
+  if (valid1 && valid2) return Math.min(cand1, cand2); /* ambiguous: first occurrence */
+  if (valid1) return cand1;
+  if (valid2) return cand2;
+  return guess - Math.min(off1, off2);                 /* gap: roll forward */
+}
+
+/* Convert UTC ms -> "YYYY-MM-DDTHH:mm" wall clock in tz */
+function utcToZonedISO(utcMs, tz) {
+  var parts = _dtfFor(tz).formatToParts(new Date(utcMs));
+  var o = {};
+  for (var i = 0; i < parts.length; i++) o[parts[i].type] = parts[i].value;
+  var h = o.hour === '24' ? '00' : o.hour;
+  return o.year + '-' + o.month + '-' + o.day + 'T' + h + ':' + o.minute;
+}
+
+function postUtcMs(post) {
+  if (!post || !post.when || !post.when.local) return NaN;
+  var tz = post.when.tz || 'UTC';
+  try { return zonedToUtcMs(post.when.local, tz); } catch (e) { return NaN; }
+}
+
+/* due state of a scheduled post: null | 'upcoming' | 'due' | 'overdue' */
+function dueState(post, nowMs) {
+  if (!post || post.status !== 'scheduled') return null;
+  var t = postUtcMs(post);
+  if (isNaN(t)) return null;
+  if (t > nowMs) return 'upcoming';
+  var minPast = (nowMs - t) / 60000;
+  return minPast <= DUE_GRACE_MIN ? 'due' : 'overdue';
+}
+
+/* ---------------- per-platform effective content ---------------- */
+function variantOf(post, pid) {
+  return (post && post.variants && post.variants[pid]) || {};
+}
+
+function effectiveCaption(post, pid) {
+  var v = variantOf(post, pid);
+  return (v.caption != null && v.caption !== '') ? v.caption : (post.caption || '');
+}
+
+function effectiveYouTube(post) {
+  var v = variantOf(post, 'youtube');
+  return {
+    title: v.title || '',
+    description: (v.description != null && v.description !== '') ? v.description : (post.caption || ''),
+    tags: v.tags || ''
+  };
+}
+
+/* ---------------- folder naming ---------------- */
+function folderNameFor(post) {
+  var p = parseLocalISO(post.when && post.when.local);
+  var datePart = p ? (p.y + '-' + pad2(p.mo) + '-' + pad2(p.d) + '_' + pad2(p.h) + pad2(p.mi)) : 'undated';
+  return datePart + '_' + slugify(post.title || (post.caption || '').slice(0, 30) || post.id);
+}
+
+/* ---------------- validation engine ---------------- */
+/* Returns [{level:'error'|'warn'|'info', platform, msg, code}] */
+function validatePost(post, opts) {
+  opts = opts || {};
+  var forSchedule = !!opts.forSchedule;
+  var nowMs = opts.now != null ? opts.now : Date.now();
+  var out = [];
+  function add(level, platform, code, msg) { out.push({ level: level, platform: platform, code: code, msg: msg }); }
+
+  var plats = post.platforms || [];
+  if (!plats.length) add(forSchedule ? 'error' : 'warn', null, 'no-platforms', 'No platforms selected.');
+
+  /* time */
+  var t = postUtcMs(post);
+  if (!post.when || !post.when.local || isNaN(t)) {
+    add(forSchedule ? 'error' : 'warn', null, 'no-time', 'No valid date & time set.');
+  } else if (forSchedule && t < nowMs - 5 * 60000) {
+    add('error', null, 'past-time', 'Scheduled time is in the past — pick a future time.');
+  }
+
+  var fmt = post.format || 'reel';
+  var media = post.media || [];
+  var videos = media.filter(function (m) { return /^video\//.test(m.type || ''); });
+  var images = media.filter(function (m) { return /^image\//.test(m.type || ''); });
+
+  /* media presence by format */
+  if (fmt === 'reel' || fmt === 'video') {
+    if (!videos.length) add(forSchedule ? 'error' : 'warn', null, 'need-video', 'This content type needs a video file attached.');
+    if (videos.length > 1) add('warn', null, 'multi-video', 'Multiple videos attached — only the first will be posted.');
+  } else if (fmt === 'photo') {
+    if (!images.length) add(forSchedule ? 'error' : 'warn', null, 'need-image', 'Photo posts need an image attached.');
+  } else if (fmt === 'carousel') {
+    if (media.length < 2) add(forSchedule ? 'error' : 'warn', null, 'carousel-min', 'Carousels need at least 2 photos/videos.');
+    if (plats.indexOf('instagram') >= 0 && media.length > 10) add('error', 'instagram', 'carousel-max', 'Instagram allows at most 10 items per carousel via scheduling tools (you have ' + media.length + ').');
+  } else if (fmt === 'story') {
+    if (!media.length) add(forSchedule ? 'error' : 'warn', null, 'need-media', 'Stories need an image or video attached.');
+  } else if (fmt === 'text') {
+    if (media.length) add('info', null, 'text-media', 'Media attached to a text post will be posted as a photo/video on Facebook.');
+  }
+
+  /* per platform */
+  var masterCap = post.caption || '';
+  plats.forEach(function (pid) {
+    var lim = LIMITS[pid];
+    var cap = effectiveCaption(post, pid);
+    var capLen = countChars(cap);
+    var pf = PLATFORM_FORMATS[pid];
+
+    if (pf && pf.indexOf(fmt) < 0) {
+      var fName = (FORMATS.find(function (f) { return f.id === fmt; }) || {}).name || fmt;
+      add('error', pid, 'fmt-unsupported', platformName(pid) + ' can’t publish “' + fName + '” posts — change the content type or unselect it.');
+      return;
+    }
+
+    if (pid === 'youtube') {
+      var yt = effectiveYouTube(post);
+      if (forSchedule && !yt.title.trim()) add('error', 'youtube', 'yt-title', 'YouTube needs a video title (set it in the YouTube tab).');
+      if (countChars(yt.title) > LIMITS.youtube.title) add('error', 'youtube', 'yt-title-len', 'YouTube title is over the 100-character limit (' + countChars(yt.title) + ').');
+      if (countChars(yt.description) > LIMITS.youtube.desc) add('error', 'youtube', 'yt-desc-len', 'YouTube description exceeds 5,000 characters (' + countChars(yt.description) + ').');
+      if (countChars(yt.tags) > LIMITS.youtube.tags) add('error', 'youtube', 'yt-tags-len', 'YouTube tags exceed 500 characters total.');
+      return;
+    }
+
+    if (lim && lim.caption && capLen > lim.caption) {
+      add('error', pid, 'cap-len', platformName(pid) + ' caption is ' + capLen + ' characters — the limit is ' + lim.caption.toLocaleString() + '.');
+    } else if (lim && lim.truncate && capLen > lim.truncate) {
+      add('info', pid, 'cap-trunc', platformName(pid) + ' shows about the first ' + lim.truncate + ' characters before “more” — put the hook up front.');
+    }
+
+    if (pid === 'instagram') {
+      var v = variantOf(post, 'instagram');
+      var tags = extractHashtags(cap).length + extractHashtags(v.firstComment || '').length;
+      if (tags > LIMITS.instagram.hashMax) add('error', 'instagram', 'hash-max', 'Instagram allows max 30 hashtags (caption + first comment) — you have ' + tags + '.');
+      else if (tags > LIMITS.instagram.hashRec) add('info', 'instagram', 'hash-rec', tags + ' hashtags — Instagram officially recommends 3–5 focused tags.');
+      if ((fmt === 'photo' || fmt === 'carousel') && images.some(function (m) { return m.type !== 'image/jpeg'; })) {
+        add('warn', 'instagram', 'ig-jpeg', 'Instagram’s API only accepts JPEG images — use “Convert to JPEG” on the attached image.');
+      }
+    }
+
+    if (!masterCap && !cap && fmt !== 'story' && pid !== 'youtube') {
+      add('warn', pid, 'no-caption', 'No caption for ' + platformName(pid) + '.');
+    }
+  });
+
+  /* media specs */
+  videos.forEach(function (m) {
+    var d = m.duration, s = m.size || 0;
+    if (plats.indexOf('instagram') >= 0 && (fmt === 'reel' || fmt === 'video')) {
+      if (s > 300 * 1048576) add('error', 'instagram', 'ig-reel-size', 'Instagram Reels accept videos up to 300 MB — this file is ' + fmtBytes(s) + '.');
+      if (d != null && d < 3) add('error', 'instagram', 'ig-reel-short', 'Instagram Reels must be at least 3 seconds.');
+      if (d != null && d > 15 * 60) add('error', 'instagram', 'ig-reel-long', 'Instagram Reels max out at 15 minutes.');
+      else if (d != null && d > 180) add('warn', 'instagram', 'ig-reel-3min', 'Reels over 3 minutes aren’t recommended to non-followers — 90 seconds or less performs best.');
+    }
+    if (plats.indexOf('instagram') >= 0 && fmt === 'story') {
+      if (d != null && d > 60) add('error', 'instagram', 'ig-story-long', 'Instagram Story videos max out at 60 seconds.');
+      if (s > 100 * 1048576) add('error', 'instagram', 'ig-story-size', 'Instagram Story videos accept up to 100 MB.');
+    }
+    if (plats.indexOf('facebook') >= 0 && fmt === 'reel') {
+      if (d != null && d > 90) add('warn', 'facebook', 'fb-reel-long', 'Facebook Reels are limited to 90 seconds — longer videos will be posted as regular videos instead.');
+      if (d != null && d < 3) add('warn', 'facebook', 'fb-reel-short', 'Facebook Reels must be at least 3 seconds.');
+    }
+    if (plats.indexOf('tiktok') >= 0) {
+      if (s > 4 * 1073741824) add('error', 'tiktok', 'tt-size', 'TikTok accepts files up to 4 GB.');
+      if (d != null && d > 600) add('warn', 'tiktok', 'tt-long', 'Videos over 10 minutes can’t be sent through the TikTok API — post manually or trim it.');
+    }
+    if (plats.indexOf('youtube') >= 0 && fmt === 'reel') {
+      if (d != null && d > 180) add('warn', 'youtube', 'yt-short-long', 'YouTube Shorts max out at 3 minutes — longer videos become regular videos.');
+      if (m.width && m.height && m.width > m.height) add('warn', 'youtube', 'yt-short-vert', 'YouTube Shorts must be vertical or square — this video is landscape.');
+    }
+    if (s > GITHUB_FILE_LIMIT && plats.some(function (p) { return AUTOPILOT_PLATFORMS.indexOf(p) >= 0; })) {
+      add('warn', null, 'gh-limit', fmtBytes(s) + ' file — GitHub autopilot can’t carry files over ~95 MB. Compress the video, or post this one via the reminder flow.');
+    }
+  });
+  images.forEach(function (m) {
+    if (plats.indexOf('instagram') >= 0 && (m.size || 0) > 8 * 1048576) {
+      add('error', 'instagram', 'ig-img-size', 'Instagram images must be under 8 MB — this one is ' + fmtBytes(m.size) + '.');
+    }
+  });
+
+  /* gentle platform truths */
+  if (plats.indexOf('youtube') >= 0) {
+    add('info', 'youtube', 'yt-reminder', 'YouTube posts are reminder-based: when it’s time you’ll be guided to YouTube Studio (its free scheduler). Auto-upload would leave videos locked private.');
+  }
+  if (plats.indexOf('tiktok') >= 0 && forSchedule) {
+    add('info', 'tiktok', 'tt-draft', 'With autopilot on, TikTok posts arrive in your TikTok app inbox as ready drafts — you tap once to publish.');
+  }
+  if (fmt === 'story' && plats.indexOf('facebook') >= 0) {
+    add('info', 'facebook', 'fb-story', 'Facebook Stories post via the reminder flow (the Pages API doesn’t schedule stories).');
+  }
+  return out;
+}
+
+function platformName(pid) {
+  var p = BUILTIN_PLATFORMS.find(function (x) { return x.id === pid; });
+  return p ? p.name : pid.charAt(0).toUpperCase() + pid.slice(1);
+}
+
+function worstLevel(msgs) {
+  if (msgs.some(function (m) { return m.level === 'error'; })) return 'error';
+  if (msgs.some(function (m) { return m.level === 'warn'; })) return 'warn';
+  return msgs.length ? 'info' : null;
+}
+
+/* ---------------- minimal ZIP (STORED) writer & reader ---------------- */
+var _crcTable = null;
+function _makeCrcTable() {
+  var t = new Uint32Array(256);
+  for (var n = 0; n < 256; n++) {
+    var c = n;
+    for (var k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+}
+function crc32(bytes) {
+  if (!_crcTable) _crcTable = _makeCrcTable();
+  var c = 0xFFFFFFFF;
+  for (var i = 0; i < bytes.length; i++) c = _crcTable[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function _dosDateTime(d) {
+  d = d || new Date();
+  var time = (d.getHours() << 11) | (d.getMinutes() << 5) | Math.floor(d.getSeconds() / 2);
+  var date = (((d.getFullYear() - 1980) & 0x7f) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  return { time: time & 0xFFFF, date: date & 0xFFFF };
+}
+
+/* entries: [{name: 'path/in/zip', data: Uint8Array}] -> Uint8Array zip (no compression) */
+function buildZip(entries) {
+  var enc = new TextEncoder();
+  var chunks = [], central = [], offset = 0, dt = _dosDateTime(new Date());
+  function le16(v) { return new Uint8Array([v & 255, (v >> 8) & 255]); }
+  function le32(v) { return new Uint8Array([v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255]); }
+  function push(arr, u8) { arr.push(u8); }
+
+  entries.forEach(function (e) {
+    var nameBytes = enc.encode(e.name);
+    var data = e.data instanceof Uint8Array ? e.data : new Uint8Array(e.data);
+    var crc = crc32(data);
+    var local = [];
+    push(local, le32(0x04034b50)); push(local, le16(20)); push(local, le16(0x0800)); /* utf-8 flag */
+    push(local, le16(0)); /* stored */
+    push(local, le16(dt.time)); push(local, le16(dt.date));
+    push(local, le32(crc)); push(local, le32(data.length)); push(local, le32(data.length));
+    push(local, le16(nameBytes.length)); push(local, le16(0));
+    push(local, nameBytes); push(local, data);
+    var localSize = local.reduce(function (a, c) { return a + c.length; }, 0);
+
+    var cen = [];
+    push(cen, le32(0x02014b50)); push(cen, le16(20)); push(cen, le16(20)); push(cen, le16(0x0800));
+    push(cen, le16(0)); push(cen, le16(dt.time)); push(cen, le16(dt.date));
+    push(cen, le32(crc)); push(cen, le32(data.length)); push(cen, le32(data.length));
+    push(cen, le16(nameBytes.length)); push(cen, le16(0)); push(cen, le16(0));
+    push(cen, le16(0)); push(cen, le16(0)); push(cen, le32(0)); push(cen, le32(offset));
+    push(cen, nameBytes);
+    central.push(cen);
+    chunks = chunks.concat(local);
+    offset += localSize;
+  });
+
+  var centralStart = offset, centralSize = 0;
+  central.forEach(function (cen) {
+    cen.forEach(function (u8) { chunks.push(u8); centralSize += u8.length; });
+  });
+  var end = [];
+  push(end, le32(0x06054b50)); push(end, le16(0)); push(end, le16(0));
+  push(end, le16(entries.length)); push(end, le16(entries.length));
+  push(end, le32(centralSize)); push(end, le32(centralStart)); push(end, le16(0));
+  chunks = chunks.concat(end);
+
+  var total = chunks.reduce(function (a, c) { return a + c.length; }, 0);
+  var out = new Uint8Array(total), pos = 0;
+  chunks.forEach(function (c) { out.set(c, pos); pos += c.length; });
+  return out;
+}
+
+/* Minimal reader for zips we created (STORED only). Returns [{name, data}] */
+function parseZip(bytes) {
+  var dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  var dec = new TextDecoder();
+  /* find end-of-central-directory */
+  var eocd = -1;
+  for (var i = bytes.length - 22; i >= Math.max(0, bytes.length - 22 - 65536); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('Not a valid zip file.');
+  var count = dv.getUint16(eocd + 10, true);
+  var cenOff = dv.getUint32(eocd + 16, true);
+  var out = [], p = cenOff;
+  for (var n = 0; n < count; n++) {
+    if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('Corrupt zip central directory.');
+    var method = dv.getUint16(p + 10, true);
+    var compSize = dv.getUint32(p + 20, true);
+    var nameLen = dv.getUint16(p + 28, true);
+    var extraLen = dv.getUint16(p + 30, true);
+    var cmtLen = dv.getUint16(p + 32, true);
+    var localOff = dv.getUint32(p + 42, true);
+    var name = dec.decode(bytes.subarray(p + 46, p + 46 + nameLen));
+    if (method !== 0) throw new Error('This zip uses compression — import only supports backups made by this app.');
+    /* local header: skip its own name/extra lengths */
+    var lNameLen = dv.getUint16(localOff + 26, true);
+    var lExtraLen = dv.getUint16(localOff + 28, true);
+    var dataStart = localOff + 30 + lNameLen + lExtraLen;
+    out.push({ name: name, data: bytes.subarray(dataStart, dataStart + compSize) });
+    p += 46 + nameLen + extraLen + cmtLen;
+  }
+  return out;
+}
+
+/* ---------------- post factory & (de)serialization ---------------- */
+function newPost(tz, dateKey) {
+  var d = dateKey || null;
+  return {
+    id: uid(), schemaVersion: SCHEMA_VERSION,
+    title: '', status: 'draft',
+    when: { local: d ? d + 'T12:00' : '', tz: tz },
+    platforms: [], format: 'reel',
+    caption: '', variants: {}, media: [],
+    label: '', notes: '',
+    results: {},
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function normalizePost(raw) {
+  /* make any imported/older post safe to use */
+  var p = Object.assign(newPost('UTC'), raw || {});
+  p.when = Object.assign({ local: '', tz: 'UTC' }, (raw && raw.when) || {});
+  p.platforms = Array.isArray(p.platforms) ? p.platforms.filter(Boolean) : [];
+  p.media = Array.isArray(p.media) ? p.media : [];
+  p.variants = (p.variants && typeof p.variants === 'object') ? p.variants : {};
+  p.results = (p.results && typeof p.results === 'object') ? p.results : {};
+  if (STATUSES.indexOf(p.status) < 0) p.status = 'draft';
+  if (!FORMATS.some(function (f) { return f.id === p.format; })) p.format = 'reel';
+  if (!p.id) p.id = uid();
+  return p;
+}
+
+/* node export for tests */
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    SCHEMA_VERSION: SCHEMA_VERSION, BUILTIN_PLATFORMS: BUILTIN_PLATFORMS, STATUSES: STATUSES, FORMATS: FORMATS,
+    LIMITS: LIMITS, PLATFORM_FORMATS: PLATFORM_FORMATS, BEST_TIMES: BEST_TIMES,
+    GITHUB_FILE_LIMIT: GITHUB_FILE_LIMIT, AUTOPILOT_PLATFORMS: AUTOPILOT_PLATFORMS, DUE_GRACE_MIN: DUE_GRACE_MIN,
+    pad2: pad2, uid: uid, escapeHtml: escapeHtml, slugify: slugify, fmtBytes: fmtBytes, fmtDuration: fmtDuration,
+    countChars: countChars, extractHashtags: extractHashtags,
+    localISO: localISO, parseLocalISO: parseLocalISO, dateKeyOf: dateKeyOf,
+    tzOffsetMs: tzOffsetMs, zonedToUtcMs: zonedToUtcMs, utcToZonedISO: utcToZonedISO,
+    postUtcMs: postUtcMs, dueState: dueState,
+    variantOf: variantOf, effectiveCaption: effectiveCaption, effectiveYouTube: effectiveYouTube,
+    folderNameFor: folderNameFor, validatePost: validatePost, platformName: platformName, worstLevel: worstLevel,
+    crc32: crc32, buildZip: buildZip, parseZip: parseZip,
+    newPost: newPost, normalizePost: normalizePost
+  };
+}
+
+/* ============================================================
+   STORAGE — two interchangeable backends:
+   FolderStore  : real files via the File System Access API
+                  (the folder IS the filing system / backup)
+   IdbStore     : IndexedDB fallback (works in any browser)
+   ============================================================ */
+
+var DB_NAME = 'sas-db', DB_VERSION = 1;
+
+function openDb() {
+  return new Promise(function (res, rej) {
+    var req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = function () {
+      var db = req.result;
+      if (!db.objectStoreNames.contains('posts')) db.createObjectStore('posts', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('media')) db.createObjectStore('media');
+      if (!db.objectStoreNames.contains('thumbs')) db.createObjectStore('thumbs');
+      if (!db.objectStoreNames.contains('kv')) db.createObjectStore('kv');
+    };
+    req.onsuccess = function () { res(req.result); };
+    req.onerror = function () { rej(req.error || new Error('Could not open browser storage.')); };
+  });
+}
+
+function idbReq(req) {
+  return new Promise(function (res, rej) {
+    req.onsuccess = function () { res(req.result); };
+    req.onerror = function () { rej(req.error); };
+  });
+}
+
+function idbTx(db, stores, mode, fn) {
+  return new Promise(function (res, rej) {
+    var tx = db.transaction(stores, mode);
+    var out;
+    tx.oncomplete = function () { res(out); };
+    tx.onerror = function () { rej(tx.error); };
+    tx.onabort = function () { rej(tx.error || new Error('Storage transaction aborted.')); };
+    out = fn(tx);
+  });
+}
+
+function sanitizeFileName(name) {
+  name = String(name || 'file').replace(/[\/\\:*?"<>|\u0000-\u001F]/g, '_').replace(/\s+/g, '_').trim();
+  if (name === '' || name === '.' || name === '..') name = 'file';
+  return name.slice(0, 120);
+}
+
+/* ---------------- IndexedDB backend ---------------- */
+function IdbStore() { this.kind = 'browser'; this.db = null; }
+
+IdbStore.prototype.init = function () {
+  var self = this;
+  return openDb().then(function (db) { self.db = db; return self; });
+};
+
+IdbStore.prototype.listPosts = function () {
+  var self = this;
+  return idbTx(self.db, ['posts'], 'readonly', function (tx) {
+    return idbReq(tx.objectStore('posts').getAll());
+  }).then(function (rows) {
+    return { posts: (rows || []).map(normalizePost), problems: [] };
+  });
+};
+
+IdbStore.prototype.savePost = function (post, newMedia) {
+  var self = this;
+  post.updatedAt = new Date().toISOString();
+  var clean = JSON.parse(JSON.stringify(post));
+  return idbTx(self.db, ['posts', 'media'], 'readwrite', function (tx) {
+    tx.objectStore('posts').put(clean);
+    if (newMedia) {
+      newMedia.forEach(function (blob, name) {
+        tx.objectStore('media').put(blob, post.id + '/' + name);
+      });
+    }
+  }).then(function () { return post; });
+};
+
+IdbStore.prototype.deletePost = function (post) {
+  var self = this;
+  return idbTx(self.db, ['posts', 'media', 'thumbs'], 'readwrite', function (tx) {
+    tx.objectStore('posts').delete(post.id);
+    tx.objectStore('thumbs').delete(post.id);
+    (post.media || []).forEach(function (m) {
+      tx.objectStore('media').delete(post.id + '/' + m.file);
+    });
+  });
+};
+
+IdbStore.prototype.removeMediaFile = function (post, name) {
+  var self = this;
+  return idbTx(self.db, ['media'], 'readwrite', function (tx) {
+    tx.objectStore('media').delete(post.id + '/' + name);
+  });
+};
+
+IdbStore.prototype.getMediaBlob = function (post, name) {
+  var self = this;
+  return idbTx(self.db, ['media'], 'readonly', function (tx) {
+    return idbReq(tx.objectStore('media').get(post.id + '/' + name));
+  }).then(function (b) { return b || null; });
+};
+
+IdbStore.prototype.putThumb = function (postId, blob) {
+  var self = this;
+  return idbTx(self.db, ['thumbs'], 'readwrite', function (tx) {
+    tx.objectStore('thumbs').put(blob, postId);
+  });
+};
+
+IdbStore.prototype.getThumb = function (postId) {
+  var self = this;
+  return idbTx(self.db, ['thumbs'], 'readonly', function (tx) {
+    return idbReq(tx.objectStore('thumbs').get(postId));
+  }).then(function (b) { return b || null; });
+};
+
+IdbStore.prototype.getSettings = function () {
+  var self = this;
+  return idbTx(self.db, ['kv'], 'readonly', function (tx) {
+    return idbReq(tx.objectStore('kv').get('settings'));
+  }).then(function (s) { return s || null; });
+};
+
+IdbStore.prototype.saveSettings = function (s) {
+  var self = this;
+  var clean = JSON.parse(JSON.stringify(s));
+  return idbTx(self.db, ['kv'], 'readwrite', function (tx) {
+    tx.objectStore('kv').put(clean, 'settings');
+  });
+};
+
+IdbStore.prototype.label = function () { return 'Browser storage'; };
+
+/* ---------------- File System Access backend ---------------- */
+function FolderStore(rootHandle) {
+  this.kind = 'folder';
+  this.root = rootHandle;
+  this.contentDir = null;
+  this.dirOf = {};   /* postId -> { handle, name } */
+}
+
+FolderStore.isSupported = function () {
+  return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+};
+
+/* remember / recall the chosen folder across sessions (handle lives in IDB) */
+FolderStore.saveHandle = function (handle) {
+  return openDb().then(function (db) {
+    return idbTx(db, ['kv'], 'readwrite', function (tx) {
+      tx.objectStore('kv').put(handle, 'dirHandle');
+    });
+  });
+};
+
+FolderStore.loadHandle = function () {
+  return openDb().then(function (db) {
+    return idbTx(db, ['kv'], 'readonly', function (tx) {
+      return idbReq(tx.objectStore('kv').get('dirHandle'));
+    });
+  }).catch(function () { return null; });
+};
+
+FolderStore.forgetHandle = function () {
+  return openDb().then(function (db) {
+    return idbTx(db, ['kv'], 'readwrite', function (tx) {
+      tx.objectStore('kv').delete('dirHandle');
+    });
+  }).catch(function () {});
+};
+
+FolderStore.prototype.init = function () {
+  var self = this;
+  return self.root.getDirectoryHandle('content', { create: true }).then(function (d) {
+    self.contentDir = d;
+    return self;
+  });
+};
+
+FolderStore.prototype.label = function () { return this.root.name || 'Connected folder'; };
+
+function readDirEntries(dirHandle) {
+  var out = [];
+  var it = dirHandle.entries();
+  function step() {
+    return it.next().then(function (r) {
+      if (r.done) return out;
+      out.push(r.value);
+      return step();
+    });
+  }
+  return step();
+}
+
+FolderStore.prototype.listPosts = function () {
+  var self = this;
+  var posts = [], problems = [];
+  self.dirOf = {};
+  return readDirEntries(self.contentDir).then(function (entries) {
+    var dirs = entries.filter(function (e) { return e[1].kind === 'directory'; });
+    return dirs.reduce(function (chain, e) {
+      var name = e[0], handle = e[1];
+      return chain.then(function () {
+        return handle.getFileHandle('post.json').then(function (fh) {
+          return fh.getFile();
+        }).then(function (f) {
+          return f.text();
+        }).then(function (txt) {
+          var raw = JSON.parse(txt);
+          var p = normalizePost(raw);
+          if (self.dirOf[p.id]) { problems.push('Duplicate post id in “content/' + name + '” — skipped.'); return; }
+          self.dirOf[p.id] = { handle: handle, name: name };
+          posts.push(p);
+        }).catch(function (err) {
+          if (err && err.name === 'NotFoundError') return; /* not a post folder; leave it alone */
+          problems.push('Couldn’t read “content/' + name + '”: ' + (err && err.message ? err.message : err));
+        });
+      });
+    }, Promise.resolve()).then(function () {
+      return { posts: posts, problems: problems };
+    });
+  });
+};
+
+function writeFileTo(dirHandle, name, data) {
+  return dirHandle.getFileHandle(name, { create: true }).then(function (fh) {
+    return fh.createWritable();
+  }).then(function (w) {
+    return w.write(data).then(function () { return w.close(); });
+  });
+}
+
+function buildHumanFiles(post) {
+  /* plain-text files so every post can be published by hand from the folder */
+  var files = {};
+  var lines = [];
+  lines.push('POST: ' + (post.title || '(untitled)'));
+  lines.push('WHEN: ' + (post.when.local ? post.when.local.replace('T', ' at ') : 'not set') + ' (' + (post.when.tz || '') + ')');
+  lines.push('STATUS: ' + post.status);
+  lines.push('TYPE: ' + post.format);
+  lines.push('PLATFORMS: ' + (post.platforms.join(', ') || 'none'));
+  if (post.label) lines.push('LABEL: ' + post.label);
+  if (post.notes) lines.push('NOTES: ' + post.notes);
+  if ((post.media || []).length) lines.push('MEDIA: ' + post.media.map(function (m) { return m.file; }).join(', '));
+  lines.push('');
+  lines.push('Made with Socials Auto Scheduler — this folder contains everything needed to post manually.');
+  files['INFO.txt'] = lines.join('\n');
+
+  files['caption.txt'] = post.caption || '';
+  post.platforms.forEach(function (pid) {
+    if (pid === 'youtube') {
+      var yt = effectiveYouTube(post);
+      files['youtube.txt'] = 'TITLE: ' + yt.title + '\n\nDESCRIPTION:\n' + yt.description + '\n\nTAGS: ' + yt.tags;
+    } else {
+      var v = variantOf(post, pid);
+      if (v.caption) files['caption-' + pid + '.txt'] = v.caption;
+      if (pid === 'instagram' && v.firstComment) files['first-comment-instagram.txt'] = v.firstComment;
+    }
+  });
+  return files;
+}
+
+FolderStore.prototype.savePost = function (post, newMedia) {
+  var self = this;
+  post.updatedAt = new Date().toISOString();
+  var wanted = folderNameFor(post);
+  var existing = self.dirOf[post.id];
+
+  function uniqueName(base) {
+    var tryName = base, suffix = 98; /* b, c, d… */
+    function exists(n) {
+      return self.contentDir.getDirectoryHandle(n).then(function () { return true; }, function () { return false; });
+    }
+    function attempt() {
+      return exists(tryName).then(function (yes) {
+        if (!yes) return tryName;
+        if (existing && existing.name === tryName) return tryName; /* it's ours */
+        tryName = base + '-' + String.fromCharCode(suffix++);
+        if (suffix > 122) tryName = base + '-' + Math.random().toString(36).slice(2, 6);
+        return attempt();
+      });
+    }
+    return attempt();
+  }
+
+  function writeAll(dirHandle) {
+    var json = JSON.stringify(post, null, 2);
+    var human = buildHumanFiles(post);
+    var ops = [writeFileTo(dirHandle, 'post.json', json)];
+    Object.keys(human).forEach(function (name) {
+      ops.push(writeFileTo(dirHandle, name, human[name]));
+    });
+    if (newMedia) {
+      newMedia.forEach(function (blob, name) {
+        ops.push(writeFileTo(dirHandle, name, blob));
+      });
+    }
+    return Promise.all(ops).then(function () {
+      /* sweep stale helper files (e.g. caption-instagram.txt after the
+         Instagram override was removed) so the folder always tells the truth */
+      return readDirEntries(dirHandle).then(function (entries) {
+        var sweeps = [];
+        entries.forEach(function (e) {
+          var name = e[0];
+          if (e[1].kind !== 'file') return;
+          var isHelper = /^caption-[a-z0-9-]+\.txt$/.test(name) ||
+            name === 'youtube.txt' || name === 'first-comment-instagram.txt';
+          if (isHelper && !(name in human)) {
+            sweeps.push(dirHandle.removeEntry(name).catch(function () {}));
+          }
+        });
+        return Promise.all(sweeps);
+      });
+    });
+  }
+
+  function copyDir(fromHandle, toHandle) {
+    return readDirEntries(fromHandle).then(function (entries) {
+      return entries.reduce(function (chain, e) {
+        return chain.then(function () {
+          if (e[1].kind !== 'file') return;
+          return e[1].getFile().then(function (f) {
+            return writeFileTo(toHandle, e[0], f);
+          });
+        });
+      }, Promise.resolve());
+    });
+  }
+
+  if (!existing) {
+    return uniqueName(wanted).then(function (name) {
+      return self.contentDir.getDirectoryHandle(name, { create: true }).then(function (d) {
+        self.dirOf[post.id] = { handle: d, name: name };
+        return writeAll(d);
+      });
+    }).then(function () { return post; });
+  }
+
+  if (existing.name === wanted) {
+    return writeAll(existing.handle).then(function () { return post; });
+  }
+
+  /* date/title changed -> move folder (copy then delete; FS API has no rename) */
+  return uniqueName(wanted).then(function (name) {
+    if (name === existing.name) return writeAll(existing.handle).then(function () { return post; });
+    return self.contentDir.getDirectoryHandle(name, { create: true }).then(function (newDir) {
+      return copyDir(existing.handle, newDir).then(function () {
+        return writeAll(newDir);
+      }).then(function () {
+        return self.contentDir.removeEntry(existing.name, { recursive: true });
+      }).then(function () {
+        self.dirOf[post.id] = { handle: newDir, name: name };
+        return post;
+      });
+    });
+  });
+};
+
+FolderStore.prototype.deletePost = function (post) {
+  var self = this;
+  var entry = self.dirOf[post.id];
+  if (!entry) return Promise.resolve();
+  return self.contentDir.removeEntry(entry.name, { recursive: true }).then(function () {
+    delete self.dirOf[post.id];
+  });
+};
+
+FolderStore.prototype.removeMediaFile = function (post, name) {
+  var self = this;
+  var entry = self.dirOf[post.id];
+  if (!entry) return Promise.resolve();
+  return entry.handle.removeEntry(sanitizeFileName(name)).catch(function () {});
+};
+
+FolderStore.prototype.getMediaBlob = function (post, name) {
+  var self = this;
+  var entry = self.dirOf[post.id];
+  if (!entry) return Promise.resolve(null);
+  return entry.handle.getFileHandle(sanitizeFileName(name)).then(function (fh) {
+    return fh.getFile();
+  }).catch(function () { return null; });
+};
+
+FolderStore.prototype.putThumb = function (postId, blob) {
+  var entry = this.dirOf[postId];
+  if (!entry) return Promise.resolve();
+  return writeFileTo(entry.handle, '_thumb.jpg', blob);
+};
+
+FolderStore.prototype.getThumb = function (postId) {
+  var entry = this.dirOf[postId];
+  if (!entry) return Promise.resolve(null);
+  return entry.handle.getFileHandle('_thumb.jpg').then(function (fh) {
+    return fh.getFile();
+  }).catch(function () { return null; });
+};
+
+FolderStore.prototype.getSettings = function () {
+  var self = this;
+  return self.root.getFileHandle('settings.json').then(function (fh) {
+    return fh.getFile();
+  }).then(function (f) { return f.text(); })
+    .then(function (t) { return JSON.parse(t); })
+    .catch(function () { return null; });
+};
+
+FolderStore.prototype.saveSettings = function (s) {
+  return writeFileTo(this.root, 'settings.json', JSON.stringify(s, null, 2));
+};
+
+/* read the freshest post.json from disk (conflict detection with autopilot) */
+FolderStore.prototype.peekPost = function (postId) {
+  var entry = this.dirOf[postId];
+  if (!entry) return Promise.resolve(null);
+  return entry.handle.getFileHandle('post.json').then(function (fh) {
+    return fh.getFile();
+  }).then(function (f) { return f.text(); })
+    .then(function (t) { return normalizePost(JSON.parse(t)); })
+    .catch(function () { return null; });
+};
+
+IdbStore.prototype.peekPost = function (postId) {
+  var self = this;
+  return idbTx(self.db, ['posts'], 'readonly', function (tx) {
+    return idbReq(tx.objectStore('posts').get(postId));
+  }).then(function (p) { return p ? normalizePost(p) : null; });
+};
+
+/* ============================================================
+   Cloud auto-publish — sends scheduled posts straight to the
+   GitHub repo so the autopilot robot posts them. No GitHub Desktop.
+   The repo + token live in localStorage only, so they are never
+   written into the synced folder and never committed anywhere.
+   ============================================================ */
+var Cloud = {
+  cfg: null,            /* { repo:'owner/name', token:'…', branch:'main' } */
+  queue: [],            /* folder names still waiting to push (auto-retried) */
+  knownSha: {},         /* repo path -> last-seen blob sha (skip unchanged on pull) */
+
+  load: function () {
+    try { this.cfg = JSON.parse(localStorage.getItem('sas-cloud') || 'null'); } catch (e) { this.cfg = null; }
+    try { this.queue = JSON.parse(localStorage.getItem('sas-cloud-queue') || '[]'); } catch (e) { this.queue = []; }
+    try { this.knownSha = JSON.parse(localStorage.getItem('sas-cloud-sha') || '{}'); } catch (e) { this.knownSha = {}; }
+  },
+  persist: function () { try { localStorage.setItem('sas-cloud', JSON.stringify(this.cfg)); } catch (e) {} },
+  persistQueue: function () { try { localStorage.setItem('sas-cloud-queue', JSON.stringify(this.queue)); } catch (e) {} },
+  persistSha: function () { try { localStorage.setItem('sas-cloud-sha', JSON.stringify(this.knownSha)); } catch (e) {} },
+
+  configured: function () { return !!(this.cfg && this.cfg.repo && this.cfg.token && /^[^/]+\/[^/]+$/.test(this.cfg.repo)); },
+  ownerRepo: function () { var p = this.cfg.repo.split('/'); return { owner: p[0], repo: p[1] }; },
+  branch: function () { return (this.cfg && this.cfg.branch) || 'main'; },
+
+  api: function (path, opts) {
+    opts = opts || {};
+    var headers = {
+      'Authorization': 'Bearer ' + this.cfg.token,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    };
+    if (opts.body) headers['Content-Type'] = 'application/json';
+    return fetch('https://api.github.com' + path, {
+      method: opts.method || 'GET', headers: headers,
+      body: opts.body ? JSON.stringify(opts.body) : undefined
+    }).then(function (r) {
+      return r.text().then(function (t) {
+        var j = {}; try { j = t ? JSON.parse(t) : {}; } catch (e) { j = { _raw: t }; }
+        if (!r.ok) { var err = new Error((j && j.message) || ('GitHub HTTP ' + r.status)); err.status = r.status; err.body = j; throw err; }
+        return j;
+      });
+    });
+  },
+
+  ping: function () { var or = this.ownerRepo(); return this.api('/repos/' + or.owner + '/' + or.repo); },
+
+  folderName: function (post) {
+    return (App.store.dirOf && App.store.dirOf[post.id] && App.store.dirOf[post.id].name) || folderNameFor(post);
+  },
+
+  blobB64: function (blob) {
+    return new Promise(function (res, rej) {
+      var r = new FileReader();
+      r.onload = function () { var s = String(r.result); var i = s.indexOf(','); res(i >= 0 ? s.slice(i + 1) : s); };
+      r.onerror = function () { rej(r.error || new Error('read failed')); };
+      r.readAsDataURL(blob);
+    });
+  },
+
+  fileSetFor: function (post) {
+    /* the exact files savePost writes: post.json + helper texts + media */
+    var files = [{ name: 'post.json', blob: new Blob([JSON.stringify(post, null, 2)], { type: 'application/json' }) }];
+    var human = buildHumanFiles(post);
+    Object.keys(human).forEach(function (n) { files.push({ name: n, blob: new Blob([human[n]], { type: 'text/plain' }) }); });
+    var chain = Promise.resolve();
+    (post.media || []).forEach(function (m) {
+      chain = chain.then(function () {
+        return App.store.getMediaBlob(post, m.file).then(function (b) { if (b) files.push({ name: m.file, blob: b }); });
+      });
+    });
+    return chain.then(function () { return files; });
+  },
+
+  treeUnder: function (prefix) {
+    var or = this.ownerRepo();
+    return this.api('/repos/' + or.owner + '/' + or.repo + '/git/trees/' + this.branch() + '?recursive=1').then(function (t) {
+      return (t.tree || []).filter(function (e) { return e.type === 'blob' && e.path.indexOf(prefix) === 0; }).map(function (e) { return e.path; });
+    }).catch(function () { return []; });
+  },
+
+  commit: function (message, addFiles, deletePaths, attempt) {
+    var self = this, or = this.ownerRepo(), base = '/repos/' + or.owner + '/' + or.repo, branch = this.branch();
+    attempt = attempt || 1;
+    var baseCommitSha, baseTreeSha;
+    return self.api(base + '/git/ref/heads/' + branch).then(function (ref) {
+      baseCommitSha = ref.object.sha; return self.api(base + '/git/commits/' + baseCommitSha);
+    }).then(function (c) {
+      baseTreeSha = c.tree.sha;
+      return (addFiles || []).reduce(function (chain, f) {
+        return chain.then(function (acc) {
+          return self.blobB64(f.blob).then(function (b64) {
+            return self.api(base + '/git/blobs', { method: 'POST', body: { content: b64, encoding: 'base64' } }).then(function (bl) {
+              acc.push({ path: f.path, mode: '100644', type: 'blob', sha: bl.sha }); return acc;
+            });
+          });
+        });
+      }, Promise.resolve([]));
+    }).then(function (treeAdds) {
+      var tree = treeAdds.concat((deletePaths || []).map(function (p) { return { path: p, mode: '100644', type: 'blob', sha: null }; }));
+      if (!tree.length) return null;
+      return self.api(base + '/git/trees', { method: 'POST', body: { base_tree: baseTreeSha, tree: tree } }).then(function (t) {
+        return self.api(base + '/git/commits', { method: 'POST', body: { message: message, tree: t.sha, parents: [baseCommitSha] } });
+      }).then(function (nc) {
+        return self.api(base + '/git/refs/heads/' + branch, { method: 'PATCH', body: { sha: nc.sha, force: false } });
+      });
+    }).catch(function (err) {
+      /* the robot may have advanced the branch between read and write — rebase by retrying */
+      if (attempt < 4 && err && (err.status === 409 || err.status === 422)) {
+        return new Promise(function (r) { setTimeout(r, 400 * attempt); }).then(function () { return self.commit(message, addFiles, deletePaths, attempt + 1); });
+      }
+      throw err;
+    });
+  },
+
+  pushPost: function (post, oldFolderName) {
+    var self = this;
+    if (!self.configured()) return Promise.resolve({ skipped: true });
+    var folder = self.folderName(post);
+    return self.fileSetFor(post).then(function (files) {
+      var adds = files.map(function (f) { return { path: 'content/' + folder + '/' + f.name, blob: f.blob }; });
+      var delP = (oldFolderName && oldFolderName !== folder) ? self.treeUnder('content/' + oldFolderName + '/') : Promise.resolve([]);
+      return delP.then(function (dels) { return self.commit('Schedule “' + (post.title || folder) + '” via app', adds, dels); });
+    });
+  },
+
+  deleteFolder: function (folderName) {
+    var self = this;
+    if (!self.configured() || !folderName) return Promise.resolve();
+    return self.treeUnder('content/' + folderName + '/').then(function (paths) {
+      if (!paths.length) return null;
+      return self.commit('Remove “' + folderName + '” via app', [], paths);
+    });
+  },
+
+  enqueue: function (folder) { if (this.queue.indexOf(folder) < 0) { this.queue.push(folder); this.persistQueue(); } },
+  dequeue: function (folder) { var i = this.queue.indexOf(folder); if (i >= 0) { this.queue.splice(i, 1); this.persistQueue(); } },
+
+  /* called right after a post is saved locally */
+  onSaved: function (post, oldFolderName) {
+    var self = this;
+    if (!self.configured()) return;
+    setCloudStatus('syncing');
+    self.pushPost(post, oldFolderName).then(function () {
+      self.dequeue(post.id); setCloudStatus('ok');
+      toast('☁︎ Sent to the cloud — the robot will post it', 'ok');
+    }).catch(function (err) {
+      self.enqueue(post.id); setCloudStatus('err', err && err.message);
+      toast('Couldn’t reach the cloud — saved locally, will retry. (' + (err && err.message ? err.message : 'error') + ')', 'err');
+    });
+  },
+  onDeleted: function (folderName) {
+    var self = this;
+    if (!self.configured()) return;
+    self.deleteFolder(folderName).catch(function () {});
+  },
+
+  /* push only the posts that failed before (cheap; runs on load/focus) */
+  retryQueue: function () {
+    var self = this;
+    if (!self.configured() || !self.queue.length) return Promise.resolve();
+    setCloudStatus('syncing');
+    var ids = self.queue.slice();
+    return ids.reduce(function (chain, id) {
+      return chain.then(function () {
+        var p = App.posts.find(function (x) { return x.id === id; });
+        if (!p) { self.dequeue(id); return; }
+        return self.pushPost(p).then(function () { self.dequeue(id); }).catch(function () {});
+      });
+    }, Promise.resolve()).then(function () { setCloudStatus(self.queue.length ? 'err' : 'ok'); });
+  },
+
+  /* full reconcile: push every local post, then pull statuses (manual button) */
+  syncAll: function () {
+    var self = this;
+    if (!self.configured()) return Promise.reject(new Error('Cloud isn’t set up yet.'));
+    setCloudStatus('syncing');
+    self.queue = []; self.persistQueue();
+    return App.posts.slice().reduce(function (chain, p) {
+      return chain.then(function () { return self.pushPost(p).catch(function () { self.enqueue(p.id); }); });
+    }, Promise.resolve()).then(function () { return self.pullStatuses(); }).then(function () {
+      setCloudStatus(self.queue.length ? 'err' : 'ok');
+    }).catch(function (err) { setCloudStatus('err', err && err.message); throw err; });
+  },
+
+  pullStatuses: function () {
+    var self = this;
+    if (!self.configured()) return Promise.resolve();
+    var or = self.ownerRepo();
+    function b64ToUtf8(b64) {
+      var bin = atob(String(b64).replace(/\s/g, '')), bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      try { return new TextDecoder('utf-8').decode(bytes); } catch (e) { return bin; }
+    }
+    return self.api('/repos/' + or.owner + '/' + or.repo + '/git/trees/' + self.branch() + '?recursive=1').then(function (t) {
+      var jsons = (t.tree || []).filter(function (e) { return e.type === 'blob' && /^content\/[^/]+\/post\.json$/.test(e.path); });
+      var changed = jsons.filter(function (e) { return self.knownSha[e.path] !== e.sha; });
+      return changed.reduce(function (chain, e) {
+        return chain.then(function () {
+          return self.api('/repos/' + or.owner + '/' + or.repo + '/git/blobs/' + e.sha).then(function (bl) {
+            var rp; try { rp = JSON.parse(b64ToUtf8(bl.content)); } catch (er) { return; }
+            self.knownSha[e.path] = e.sha;
+            var local = App.posts.find(function (x) { return x.id === rp.id; });
+            if (local && (!App.editing || App.editing.id !== local.id)) {
+              if (rp.status && rp.status !== local.status) local.status = rp.status;
+              if (rp.results) local.results = rp.results;
+            }
+          }).catch(function () {});
+        });
+      }, Promise.resolve()).then(function () { self.persistSha(); render(); });
+    }).catch(function () {});
+  }
+};
+
+function setCloudStatus(state, msg) {
+  var chip = document.getElementById('cloudChip');
+  if (!chip) return;
+  if (!Cloud.configured()) { chip.style.display = 'none'; return; }
+  chip.style.display = '';
+  var q = Cloud.queue.length;
+  var base = 'display:inline-flex;align-items:center;gap:4px;cursor:pointer;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600;border:1px solid;';
+  if (state === 'syncing') { chip.style.cssText = base + 'background:#1f2937;border-color:#374151;color:#cbd5e1'; chip.textContent = '☁︎ Syncing…'; chip.title = 'Sending your posts to the cloud…'; }
+  else if (state === 'err') { chip.style.cssText = base + 'background:#3b1d1d;border-color:#7f1d1d;color:#fca5a5'; chip.textContent = '⚠︎ Cloud retry' + (q ? ' (' + q + ')' : ''); chip.title = (msg || 'Sync failed') + ' — click to retry now'; }
+  else { chip.style.cssText = base + 'background:#10241b;border-color:#14532d;color:#86efac'; chip.textContent = q ? ('☁︎ ' + q + ' to sync') : '☁︎ Auto-publish on'; chip.title = 'Posts sync to the cloud automatically. Click for cloud settings.'; }
+}
+
+/* ============================================================
+   UI — application state, calendar/list rendering, filtering.
+   ============================================================ */
+
+var App = {
+  store: null,
+  posts: [],
+  settings: null,
+  view: 'month',
+  cursor: new Date(),
+  filters: { platform: '', status: '', label: '', q: '' },
+  editing: null,
+  editingOriginalUpdatedAt: null,
+  editingIsNew: false,
+  newMedia: new Map(),
+  thumbUrls: {},
+  previewUrls: [],
+  activeVTab: null,
+  dueShownIds: {},
+  dueDismissedIds: {},
+  bootDone: false
+};
+
+function $(sel) { return document.querySelector(sel); }
+function $$(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+function esc(s) { return escapeHtml(s); }
+
+function defaultSettings() {
+  var tz = 'UTC';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) {}
+  return {
+    tz: tz,
+    labels: [
+      { name: 'Promo', color: '#f472b6' },
+      { name: 'Tips', color: '#60a5fa' },
+      { name: 'Behind the scenes', color: '#facc15' }
+    ],
+    hashGroups: [],
+    customPlatforms: [],
+    lastBackup: null,
+    notifiedIds: {}
+  };
+}
+
+function allPlatforms() {
+  var customs = ((App.settings && App.settings.customPlatforms) || []).map(function (c) {
+    return { id: c.id, name: c.name, color: c.color || '#9aa4b8', short: (c.name || '?').slice(0, 2).toUpperCase(), custom: true };
+  });
+  return BUILTIN_PLATFORMS.concat(customs);
+}
+
+function platformById(pid) {
+  return allPlatforms().find(function (p) { return p.id === pid; }) ||
+    { id: pid, name: pid, color: '#9aa4b8', short: '?', custom: true };
+}
+
+function platformDisplayName(pid) { return platformById(pid).name; }
+
+function fmtTime12(localIsoStr) {
+  var p = parseLocalISO(localIsoStr);
+  if (!p) return '';
+  var h = p.h % 12 === 0 ? 12 : p.h % 12;
+  return h + ':' + pad2(p.mi) + ' ' + (p.h < 12 ? 'AM' : 'PM');
+}
+
+function fmtHour12(h) {
+  var hh = h % 12 === 0 ? 12 : h % 12;
+  return hh + (h < 12 ? 'am' : 'pm');
+}
+
+var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+var MONTHS_S = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var DOWS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function dateKeyFromDate(d) {
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+
+function todayKey() { return dateKeyFromDate(new Date()); }
+
+function fmtDateHuman(dateKey) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateKey);
+  if (!m) return dateKey;
+  var d = new Date(+m[1], +m[2] - 1, +m[3]);
+  return DOWS[d.getDay()] + ', ' + MONTHS_S[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+}
+
+/* ---------------- filtering ---------------- */
+function matchesFilters(post) {
+  var f = App.filters;
+  if (f.platform && (post.platforms || []).indexOf(f.platform) < 0) return false;
+  if (f.status) {
+    if (f.status === 'overdue') {
+      if (dueState(post, Date.now()) !== 'overdue') return false;
+    } else if (post.status !== f.status) return false;
+  }
+  if (f.label && post.label !== f.label) return false;
+  if (f.q) {
+    var q = f.q.toLowerCase();
+    var hay = [post.title, post.caption, post.notes, post.label];
+    Object.keys(post.variants || {}).forEach(function (k) {
+      var v = post.variants[k] || {};
+      hay.push(v.caption, v.title, v.description, v.firstComment);
+    });
+    if (hay.join(' ').toLowerCase().indexOf(q) < 0) return false;
+  }
+  return true;
+}
+
+function visiblePosts() { return App.posts.filter(matchesFilters); }
+
+function postsByDate(posts) {
+  var map = {};
+  posts.forEach(function (p) {
+    var k = dateKeyOf(p.when && p.when.local) || 'unscheduled';
+    (map[k] = map[k] || []).push(p);
+  });
+  Object.keys(map).forEach(function (k) {
+    map[k].sort(function (a, b) { return (a.when.local || '').localeCompare(b.when.local || ''); });
+  });
+  return map;
+}
+
+function effectiveStatusClass(post) {
+  var ds = dueState(post, Date.now());
+  if (ds === 'overdue') return 's-overdue';
+  return 's-' + post.status;
+}
+
+function statusBadge(post) {
+  var ds = dueState(post, Date.now());
+  if (ds === 'overdue') return '<span class="statusbadge sb-overdue">Overdue</span>';
+  if (ds === 'due') return '<span class="statusbadge sb-overdue">Due now</span>';
+  var partial = post.status === 'scheduled' && Object.keys(post.results || {}).some(function (k) { return post.results[k] && post.results[k].ok; });
+  if (partial) return '<span class="statusbadge sb-scheduled">Partly posted</span>';
+  return '<span class="statusbadge sb-' + post.status + '">' + post.status.charAt(0).toUpperCase() + post.status.slice(1) + '</span>';
+}
+
+function platformDotsHtml(post) {
+  return '<span class="pdots">' + (post.platforms || []).map(function (pid) {
+    var p = platformById(pid);
+    var cls = ['instagram','facebook','tiktok','youtube'].indexOf(pid) >= 0 ? pid : 'custom';
+    var style = cls === 'custom' ? ' style="background:' + esc(p.color) + '"' : '';
+    return '<span class="pdot ' + cls + '"' + style + ' title="' + esc(p.name) + '"></span>';
+  }).join('') + '</span>';
+}
+
+function labelPillHtml(post) {
+  if (!post.label) return '';
+  var l = (App.settings.labels || []).find(function (x) { return x.name === post.label; });
+  var color = l ? l.color : '#9aa4b8';
+  return '<span class="labelpill" style="background:' + esc(color) + '">' + esc(post.label) + '</span>';
+}
+
+function thumbHtml(post, sizeClass) {
+  var f = (FORMATS.find(function (x) { return x.id === post.format; }) || {});
+  return '<span class="thumb" data-thumb="' + esc(post.id) + '">' + (f.icon || '📄') + '</span>';
+}
+
+/* after each render, hydrate thumbnails asynchronously */
+function hydrateThumbs() {
+  $$('[data-thumb]').forEach(function (elx) {
+    var id = elx.getAttribute('data-thumb');
+    if (App.thumbUrls[id] === undefined) {
+      App.thumbUrls[id] = null; /* in flight */
+      App.store.getThumb(id).then(function (blob) {
+        if (blob) App.thumbUrls[id] = URL.createObjectURL(blob);
+        else App.thumbUrls[id] = '';
+        applyThumb(id);
+      }).catch(function () { App.thumbUrls[id] = ''; });
+    } else {
+      applyThumb(id);
+    }
+  });
+}
+
+function applyThumb(id) {
+  var url = App.thumbUrls[id];
+  if (!url) return;
+  $$('[data-thumb="' + id + '"]').forEach(function (elx) {
+    if (!elx.querySelector('img')) {
+      var img = document.createElement('img');
+      img.alt = '';
+      img.src = url;
+      elx.textContent = '';
+      elx.appendChild(img);
+    }
+  });
+}
+
+function invalidateThumb(id) {
+  if (App.thumbUrls[id]) { try { URL.revokeObjectURL(App.thumbUrls[id]); } catch (e) {} }
+  delete App.thumbUrls[id];
+}
+
+/* ---------------- post card ---------------- */
+function pcardHtml(post, opts) {
+  opts = opts || {};
+  var draggable = ['published'].indexOf(post.status) < 0;
+  var html = '<div class="pcard ' + effectiveStatusClass(post) + '" data-post="' + esc(post.id) + '"' +
+    (draggable ? ' draggable="true"' : '') + ' title="' + esc(post.title || 'Untitled post') + '">' +
+    thumbHtml(post) +
+    '<div class="meta">' +
+      '<div class="row1"><span class="time">' + esc(fmtTime12(post.when.local) || '—') + '</span>' +
+        platformDotsHtml(post) + labelPillHtml(post) + '</div>' +
+      '<div class="title">' + esc(post.title || firstLine(post.caption) || 'Untitled') + '</div>' +
+      (opts.caption ? '<div class="wk-card-cap">' + esc(post.caption || '') + '</div>' : '') +
+    '</div>' +
+  '</div>';
+  return html;
+}
+
+function firstLine(s) {
+  return String(s || '').split('\n')[0].slice(0, 60);
+}
+
+/* ---------------- month view ---------------- */
+function renderMonth() {
+  var y = App.cursor.getFullYear(), mo = App.cursor.getMonth();
+  $('#navLabel').textContent = MONTHS[mo] + ' ' + y;
+  var first = new Date(y, mo, 1);
+  var start = new Date(y, mo, 1 - first.getDay());
+  var daysInMonth = new Date(y, mo + 1, 0).getDate();
+  var totalCells = Math.ceil((first.getDay() + daysInMonth) / 7) * 7;
+  var byDate = postsByDate(visiblePosts());
+  var tKey = todayKey();
+  var html = '<div class="cal-month">';
+  DOWS.forEach(function (d) { html += '<div class="dow">' + d + '</div>'; });
+
+  for (var i = 0; i < totalCells; i++) {
+    var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    var key = dateKeyFromDate(d);
+    var inMonth = d.getMonth() === mo;
+    var cards = byDate[key] || [];
+    var cls = 'cal-cell' + (inMonth ? '' : ' other') + (key === tKey ? ' today' : '');
+    html += '<div class="' + cls + '" data-date="' + key + '">' +
+      '<div class="cellhead"><span class="daynum">' + d.getDate() + '</span>' +
+      '<button class="addday" data-add="' + key + '" title="New post on ' + esc(fmtDateHuman(key)) + '">+</button></div>';
+    var maxShow = 3;
+    cards.slice(0, maxShow).forEach(function (p) { html += pcardHtml(p); });
+    if (cards.length > maxShow) {
+      html += '<button class="more" data-more="' + key + '">+' + (cards.length - maxShow) + ' more</button>';
+    }
+    html += '</div>';
+  }
+  html += '</div>';
+  $('#main').innerHTML = html;
+  wireCalendarCells();
+  hydrateThumbs();
+}
+
+/* ---------------- week view ---------------- */
+function renderWeek() {
+  var c = new Date(App.cursor.getFullYear(), App.cursor.getMonth(), App.cursor.getDate());
+  var start = new Date(c.getFullYear(), c.getMonth(), c.getDate() - c.getDay());
+  var end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
+  var label = MONTHS_S[start.getMonth()] + ' ' + start.getDate() + ' – ' +
+    (end.getMonth() === start.getMonth() ? '' : MONTHS_S[end.getMonth()] + ' ') + end.getDate() + ', ' + end.getFullYear();
+  $('#navLabel').textContent = label;
+  var byDate = postsByDate(visiblePosts());
+  var tKey = todayKey();
+  var html = '<div class="cal-week">';
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+    var key = dateKeyFromDate(d);
+    var cards = byDate[key] || [];
+    html += '<div class="wk-col' + (key === tKey ? ' today' : '') + '" data-date="' + key + '">' +
+      '<div class="colhead"><span class="d">' + d.getDate() + '</span><span class="m">' + DOWS[d.getDay()] + '</span>' +
+      '<span style="flex:1"></span><button class="addday" data-add="' + key + '" style="opacity:1" title="New post">+</button></div>';
+    if (!cards.length) html += '<div class="muted small" style="text-align:center;padding:14px 0">—</div>';
+    cards.forEach(function (p) { html += pcardHtml(p, { caption: true }); });
+    html += '</div>';
+  }
+  html += '</div>';
+  $('#main').innerHTML = html;
+  wireCalendarCells();
+  hydrateThumbs();
+}
+
+/* ---------------- list view ---------------- */
+function renderList() {
+  $('#navLabel').textContent = 'All posts';
+  var posts = visiblePosts().slice().sort(function (a, b) {
+    return (a.when.local || '9999').localeCompare(b.when.local || '9999');
+  });
+  if (!posts.length) {
+    $('#main').innerHTML = '<div class="empty"><div class="big">🗓️</div>' +
+      '<p style="font-size:16px;font-weight:600;margin-bottom:6px">' +
+      (App.posts.length ? 'Nothing matches those filters.' : 'No posts yet.') + '</p>' +
+      '<p>' + (App.posts.length ? 'Try clearing the filters above.' : 'Hit <b>+ New Post</b> to plan your first one.') + '</p></div>';
+    return;
+  }
+  var groups = {}, order = [];
+  posts.forEach(function (p) {
+    var k = dateKeyOf(p.when.local) || 'No date yet';
+    if (!groups[k]) { groups[k] = []; order.push(k); }
+    groups[k].push(p);
+  });
+  var html = '<div class="listview">';
+  order.forEach(function (k) {
+    html += '<div class="lv-group"><h3>' + esc(/^\d{4}/.test(k) ? fmtDateHuman(k) : k) + '</h3>';
+    groups[k].forEach(function (p) {
+      html += '<div class="lv-row ' + effectiveStatusClass(p) + '" data-post="' + esc(p.id) + '">' +
+        '<span class="thumb" data-thumb="' + esc(p.id) + '">' + ((FORMATS.find(function (x) { return x.id === p.format; }) || {}).icon || '📄') + '</span>' +
+        '<div class="main">' +
+          '<div style="display:flex;align-items:center;gap:8px">' + platformDotsHtml(p) +
+            '<b>' + esc(p.title || firstLine(p.caption) || 'Untitled') + '</b>' + labelPillHtml(p) + '</div>' +
+          '<div class="cap">' + esc(firstLine(p.caption) || 'No caption') + '</div>' +
+        '</div>' +
+        '<div class="when"><div class="t">' + esc(fmtTime12(p.when.local) || '') + '</div>' +
+          '<div class="muted small">' + ((p.media || []).length ? (p.media.length + ' file' + (p.media.length > 1 ? 's' : '')) : 'no media') + '</div></div>' +
+        statusBadge(p) +
+      '</div>';
+    });
+    html += '</div>';
+  });
+  html += '</div>';
+  $('#main').innerHTML = html;
+  $$('#main .lv-row').forEach(function (row) {
+    row.addEventListener('click', function () { openComposer(row.getAttribute('data-post')); });
+  });
+  hydrateThumbs();
+}
+
+/* ---------------- shared cell wiring (click, add, drag-drop) ---------------- */
+function wireCalendarCells() {
+  $$('#main .pcard').forEach(function (card) {
+    card.addEventListener('click', function (e) {
+      e.stopPropagation();
+      openComposer(card.getAttribute('data-post'));
+    });
+    card.addEventListener('dragstart', function (e) {
+      card.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', card.getAttribute('data-post'));
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', function () { card.classList.remove('dragging'); });
+  });
+  $$('#main [data-add]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      openComposer(null, btn.getAttribute('data-add'));
+    });
+  });
+  $$('#main [data-more]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      openDayModal(btn.getAttribute('data-more'));
+    });
+  });
+  $$('#main [data-date]').forEach(function (cell) {
+    cell.addEventListener('dragover', function (e) { e.preventDefault(); cell.classList.add('dragover'); });
+    cell.addEventListener('dragleave', function () { cell.classList.remove('dragover'); });
+    cell.addEventListener('drop', function (e) {
+      e.preventDefault();
+      cell.classList.remove('dragover');
+      var id = e.dataTransfer.getData('text/plain');
+      if (id) movePostToDate(id, cell.getAttribute('data-date'));
+    });
+  });
+}
+
+function movePostToDate(postId, dateKey) {
+  var post = App.posts.find(function (p) { return p.id === postId; });
+  if (!post || !dateKey) return;
+  var oldKey = dateKeyOf(post.when.local);
+  if (oldKey === dateKey) return;
+  var time = (post.when.local || '').slice(11) || '12:00';
+  var newLocal = dateKey + 'T' + time;
+  var proceed = function () {
+    post.when.local = newLocal;
+    saveExistingPost(post).then(function () {
+      toast('Moved to ' + fmtDateHuman(dateKey), 'ok');
+      render();
+    }).catch(function (err) { toast('Couldn’t move post: ' + err.message, 'err'); render(); });
+  };
+  if (post.status === 'scheduled' && zonedToUtcMs(newLocal, post.when.tz || App.settings.tz) < Date.now()) {
+    confirmModal('Move to a past time?', 'That date and time has already passed, so this post would immediately show as overdue. Move it anyway?', 'Move it').then(function (yes) { if (yes) proceed(); });
+  } else {
+    proceed();
+  }
+}
+
+function openDayModal(dateKey) {
+  var byDate = postsByDate(visiblePosts());
+  var cards = byDate[dateKey] || [];
+  var body = cards.map(function (p) { return pcardHtml(p); }).join('') || '<p class="muted">No posts.</p>';
+  showModal(fmtDateHuman(dateKey), body, [
+    { label: '+ New post this day', primary: true, onClick: function () { closeModal(); openComposer(null, dateKey); } }
+  ]);
+  $$('#modalBody .pcard').forEach(function (card) {
+    card.addEventListener('click', function () {
+      closeModal();
+      openComposer(card.getAttribute('data-post'));
+    });
+  });
+  hydrateThumbs();
+}
+
+/* ---------------- top-level render ---------------- */
+function render() {
+  var nav = $('.navdate');
+  nav.style.visibility = App.view === 'list' ? 'hidden' : 'visible';
+  if (App.view === 'month') renderMonth();
+  else if (App.view === 'week') renderWeek();
+  else renderList();
+  renderCountInfo();
+  renderDueBanner();
+}
+
+function renderCountInfo() {
+  var vis = visiblePosts();
+  var sched = vis.filter(function (p) { return p.status === 'scheduled'; }).length;
+  var need = vis.filter(function (p) {
+    var ds = dueState(p, Date.now());
+    return ds === 'due' || ds === 'overdue' || p.status === 'failed';
+  }).length;
+  $('#countInfo').textContent = vis.length + ' post' + (vis.length === 1 ? '' : 's') +
+    (sched ? ' · ' + sched + ' scheduled' : '') +
+    (need ? ' · ' + need + ' need attention' : '');
+}
+
+function populateFilters() {
+  var pSel = $('#fltPlatform');
+  var keep = pSel.value;
+  pSel.innerHTML = '<option value="">All platforms</option>' + allPlatforms().map(function (p) {
+    return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>';
+  }).join('');
+  pSel.value = keep;
+  var lSel = $('#fltLabel');
+  keep = lSel.value;
+  lSel.innerHTML = '<option value="">All labels</option>' + (App.settings.labels || []).map(function (l) {
+    return '<option value="' + esc(l.name) + '">' + esc(l.name) + '</option>';
+  }).join('');
+  lSel.value = keep;
+}
+
+/* ---------------- toasts & modals ---------------- */
+function toast(msg, kind) {
+  var t = document.createElement('div');
+  t.className = 'toast' + (kind ? ' ' + kind : '');
+  t.textContent = msg;
+  $('#toasts').appendChild(t);
+  setTimeout(function () { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; }, 3200);
+  setTimeout(function () { t.remove(); }, 3600);
+}
+
+var _modalButtons = [];
+function showModal(title, bodyHtml, buttons) {
+  $('#modalTitle').textContent = title;
+  $('#modalBody').innerHTML = bodyHtml;
+  var foot = $('#modalFoot');
+  foot.innerHTML = '';
+  _modalButtons = buttons || [];
+  _modalButtons.forEach(function (b) {
+    var btn = document.createElement('button');
+    btn.className = 'btn' + (b.primary ? ' primary' : '') + (b.danger ? ' danger' : '');
+    btn.textContent = b.label;
+    btn.addEventListener('click', b.onClick);
+    foot.appendChild(btn);
+  });
+  $('#modalWrap').classList.add('open');
+}
+
+function closeModal() { $('#modalWrap').classList.remove('open'); }
+
+function confirmModal(title, text, okLabel) {
+  return new Promise(function (res) {
+    showModal(title, '<p>' + esc(text) + '</p>', [
+      { label: 'Cancel', onClick: function () { closeModal(); res(false); } },
+      { label: okLabel || 'OK', primary: true, onClick: function () { closeModal(); res(true); } }
+    ]);
+  });
+}
+
+/* ============================================================
+   COMPOSER — the post editor drawer.
+   ============================================================ */
+
+var _validateTimer = null;
+var _dirty = false;
+var _removedMedia = [];
+var _stagedThumb;        /* undefined = untouched, Blob = new thumb, null = clear */
+
+function openComposer(postId, dateKey) {
+  var post;
+  if (postId) {
+    var existing = App.posts.find(function (p) { return p.id === postId; });
+    if (!existing) return;
+    post = normalizePost(JSON.parse(JSON.stringify(existing)));
+    App.editingIsNew = false;
+    App.editingOriginalUpdatedAt = existing.updatedAt;
+  } else {
+    post = newPost(App.settings.tz, dateKey || todayKey());
+    post.platforms = allPlatforms().slice(0, 4).map(function (p) { return p.id; }).filter(function (id) {
+      return ['instagram', 'facebook', 'tiktok'].indexOf(id) >= 0; /* sensible default selection */
+    });
+    App.editingIsNew = true;
+    App.editingOriginalUpdatedAt = null;
+  }
+  App.editing = post;
+  App.newMedia = new Map();
+  _removedMedia = [];
+  _stagedThumb = undefined;
+  _dirty = false;
+  _pendingSchedule = false;
+  App.activeVTab = null;
+  revokePreviews();
+
+  $('#drawerTitle').textContent = postId ? 'Edit post' : 'New post';
+  $('#fTitle').value = post.title || '';
+  $('#fDate').value = dateKeyOf(post.when.local) || '';
+  $('#fTime').value = (post.when.local || '').slice(11, 16) || '12:00';
+  $('#fCaption').value = post.caption || '';
+  $('#fNotes').value = post.notes || '';
+  renderLabelSelect();
+  $('#fLabel').value = post.label || '';
+  $('#deleteBtn').classList.toggle('hidden', App.editingIsNew);
+  $('#duplicateBtn').classList.toggle('hidden', App.editingIsNew);
+
+  renderDrawerStatus();
+  renderPlatGrid();
+  renderFormatRow();
+  renderVTabs();
+  renderHashBar();
+  renderBestTimes();
+  renderMediaRow();
+  runValidation();
+  updateCounters();
+  updateFooterButtons();
+  $('#saveHint').textContent = '';
+
+  $('#scrim').classList.add('open');
+  $('#drawer').classList.add('open');
+  setTimeout(function () { $('#fTitle').focus(); }, 220);
+}
+
+function closeComposer(force) {
+  function reallyClose() {
+    $('#scrim').classList.remove('open');
+    $('#drawer').classList.remove('open');
+    App.editing = null;
+    revokePreviews();
+  }
+  if (_dirty && !force) {
+    confirmModal('Discard changes?', 'You have unsaved changes on this post. Close without saving?', 'Discard').then(function (yes) {
+      if (yes) reallyClose();
+    });
+  } else {
+    reallyClose();
+  }
+}
+
+function markDirty() {
+  _dirty = true;
+  $('#saveHint').textContent = 'Unsaved changes';
+  if (_validateTimer) clearTimeout(_validateTimer);
+  _validateTimer = setTimeout(function () { runValidation(); }, 250);
+}
+
+function renderDrawerStatus() {
+  var p = App.editing;
+  var badge = $('#drawerStatus');
+  var ds = dueState(p, Date.now());
+  var label = ds === 'overdue' ? 'Overdue' : p.status.charAt(0).toUpperCase() + p.status.slice(1);
+  badge.className = 'statusbadge ' + (ds === 'overdue' ? 'sb-overdue' : 'sb-' + p.status);
+  badge.textContent = label;
+}
+
+function updateFooterButtons() {
+  var p = App.editing;
+  var isPub = p.status === 'published';
+  $('#scheduleBtn').classList.toggle('hidden', isPub);
+  $('#saveReadyBtn').classList.toggle('hidden', isPub);
+  $('#saveDraftBtn').textContent = isPub ? 'Save changes' : (p.status === 'scheduled' ? 'Back to draft' : 'Save draft');
+  $('#scheduleBtn').textContent = p.status === 'scheduled' ? 'Update schedule' : 'Schedule';
+}
+
+/* ---------------- platforms ---------------- */
+function renderPlatGrid() {
+  var p = App.editing;
+  var grid = $('#platGrid');
+  grid.innerHTML = allPlatforms().map(function (pl) {
+    var on = p.platforms.indexOf(pl.id) >= 0;
+    var cls = ['instagram','facebook','tiktok','youtube'].indexOf(pl.id) >= 0 ? pl.id : 'custom';
+    var dotStyle = cls === 'custom' ? ' style="background:' + esc(pl.color) + '"' : '';
+    return '<button type="button" class="plat-toggle ' + cls + (on ? ' on' : '') + '" data-plat="' + esc(pl.id) + '">' +
+      '<span class="pdot ' + cls + '"' + dotStyle + '></span>' + esc(pl.name) + '</button>';
+  }).join('');
+  $$('#platGrid .plat-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var id = btn.getAttribute('data-plat');
+      var i = App.editing.platforms.indexOf(id);
+      if (i >= 0) App.editing.platforms.splice(i, 1);
+      else App.editing.platforms.push(id);
+      markDirty();
+      renderPlatGrid(); renderVTabs(); renderBestTimes(); renderFormatRow(); updateCounters();
+    });
+  });
+}
+
+/* ---------------- format ---------------- */
+function renderFormatRow() {
+  var p = App.editing;
+  var row = $('#formatRow');
+  row.innerHTML = FORMATS.map(function (f) {
+    var unsupported = p.platforms.filter(function (pid) {
+      var pf = PLATFORM_FORMATS[pid];
+      return pf && pf.indexOf(f.id) < 0;
+    }).map(platformDisplayName);
+    var warn = unsupported.length ? ' title="Not supported by ' + esc(unsupported.join(', ')) + '"' : '';
+    return '<button type="button" class="fmt' + (p.format === f.id ? ' on' : '') + '" data-fmt="' + f.id + '"' + warn + '>' +
+      f.icon + ' ' + esc(f.name) + (unsupported.length && p.format === f.id ? ' ⚠' : '') + '</button>';
+  }).join('');
+  $$('#formatRow .fmt').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      App.editing.format = btn.getAttribute('data-fmt');
+      markDirty();
+      renderFormatRow();
+    });
+  });
+}
+
+/* ---------------- caption, counters, hashtags ---------------- */
+function updateCounters() {
+  var p = App.editing;
+  var box = $('#capCounters');
+  var parts = [];
+  p.platforms.forEach(function (pid) {
+    if (pid === 'youtube') {
+      var yt = effectiveYouTube(p);
+      var t = countChars(yt.title), d = countChars(yt.description);
+      parts.push('<span><b>YT</b> title <span class="' + (t > LIMITS.youtube.title ? 'over' : '') + '">' + t + '/' + LIMITS.youtube.title + '</span>' +
+        ' · desc <span class="' + (d > LIMITS.youtube.desc ? 'over' : '') + '">' + d + '/' + LIMITS.youtube.desc + '</span></span>');
+      return;
+    }
+    var lim = LIMITS[pid];
+    var pl = platformById(pid);
+    var cap = effectiveCaption(p, pid);
+    var n = countChars(cap);
+    if (!lim) { parts.push('<span><b>' + esc(pl.short) + '</b> ' + n + '</span>'); return; }
+    var cls = n > lim.caption ? 'over' : (lim.truncate && n > lim.truncate ? 'warn' : '');
+    var extra = '';
+    if (pid === 'instagram') {
+      var v = variantOf(p, 'instagram');
+      var tags = extractHashtags(cap).length + extractHashtags(v.firstComment || '').length;
+      extra = ' · <span class="' + (tags > 30 ? 'over' : '') + '">#' + tags + '</span>';
+    }
+    parts.push('<span><b>' + esc(pl.short) + '</b> <span class="' + cls + '">' + n + '/' + lim.caption + '</span>' + extra + '</span>');
+  });
+  box.innerHTML = parts.join(' &nbsp;·&nbsp; ') || '<span class="muted">Select platforms to see limits</span>';
+}
+
+function renderHashBar() {
+  var bar = $('#hashBar');
+  var groups = App.settings.hashGroups || [];
+  var html = groups.map(function (g, i) {
+    return '<button type="button" class="hash-chip" data-hash="' + i + '" title="' + esc(g.tags) + '"># ' + esc(g.name) + '</button>';
+  }).join('');
+  html += '<button type="button" class="hash-chip" data-hash="manage" style="opacity:.7">✎ hashtag sets</button>';
+  bar.innerHTML = html;
+  $$('#hashBar .hash-chip').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var key = btn.getAttribute('data-hash');
+      if (key === 'manage') { openSettings('hashtags'); return; }
+      var g = App.settings.hashGroups[+key];
+      if (!g) return;
+      var ta = $('#fCaption');
+      var cur = ta.value.replace(/\s+$/, '');
+      ta.value = cur + (cur ? '\n\n' : '') + g.tags;
+      App.editing.caption = ta.value;
+      markDirty(); updateCounters();
+    });
+  });
+}
+
+/* ---------------- best times ---------------- */
+function renderBestTimes() {
+  var p = App.editing;
+  var box = $('#bestTimes');
+  var dk = $('#fDate').value;
+  if (!dk || !p.platforms.length) {
+    box.innerHTML = '<span class="muted small">Pick platforms & date first</span>';
+    return;
+  }
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dk);
+  if (!m) { box.innerHTML = ''; return; }
+  var dow = new Date(+m[1], +m[2] - 1, +m[3]).getDay();
+  var chips = [];
+  p.platforms.forEach(function (pid) {
+    var bt = BEST_TIMES[pid];
+    if (!bt) return;
+    var pl = platformById(pid);
+    (bt[dow] || []).forEach(function (slot) {
+      chips.push({ pid: pid, short: pl.short, h: slot.h, top: !!slot.top });
+    });
+  });
+  if (!chips.length) { box.innerHTML = '<span class="muted small">No data for these platforms</span>'; return; }
+  chips.sort(function (a, b) { return a.h - b.h || (b.top - a.top); });
+  box.innerHTML = chips.map(function (c) {
+    return '<button type="button" class="bt-chip" data-hour="' + c.h + '">' +
+      (c.top ? '<span class="star">★</span>' : '') + esc(c.short) + ' ' + fmtHour12(c.h) + '</button>';
+  }).join('');
+  $$('#bestTimes .bt-chip').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      $('#fTime').value = pad2(+btn.getAttribute('data-hour')) + ':00';
+      syncWhen();
+      markDirty();
+    });
+  });
+}
+
+function syncWhen() {
+  var d = $('#fDate').value, t = $('#fTime').value;
+  App.editing.when.local = (d && t) ? d + 'T' + t : '';
+  if (!App.editing.when.tz) App.editing.when.tz = App.settings.tz;
+}
+
+/* ---------------- per-platform variant tabs ---------------- */
+function renderVTabs() {
+  var p = App.editing;
+  var tabs = $('#vTabs');
+  if (!p.platforms.length) {
+    tabs.innerHTML = '<span class="muted small" style="padding:8px 0">Select platforms above to customize per network</span>';
+    $('#vPanel').innerHTML = '';
+    App.activeVTab = null;
+    return;
+  }
+  if (!App.activeVTab || p.platforms.indexOf(App.activeVTab) < 0) App.activeVTab = p.platforms[0];
+  tabs.innerHTML = p.platforms.map(function (pid) {
+    var pl = platformById(pid);
+    var v = variantOf(p, pid);
+    var edited = Object.keys(v).some(function (k) { return v[k]; });
+    return '<button type="button" data-vtab="' + esc(pid) + '" class="' + (App.activeVTab === pid ? 'active' : '') + '">' +
+      esc(pl.name) + (edited ? '<span class="editedmark" title="Customized"></span>' : '') + '</button>';
+  }).join('');
+  $$('#vTabs [data-vtab]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      App.activeVTab = btn.getAttribute('data-vtab');
+      renderVTabs();
+    });
+  });
+  renderVPanel();
+}
+
+function ensureVariant(pid) {
+  var p = App.editing;
+  if (!p.variants[pid]) p.variants[pid] = {};
+  return p.variants[pid];
+}
+
+function pruneVariant(pid) {
+  var p = App.editing;
+  var v = p.variants[pid];
+  if (v && !Object.keys(v).some(function (k) { return v[k]; })) delete p.variants[pid];
+}
+
+function renderVPanel() {
+  var p = App.editing;
+  var pid = App.activeVTab;
+  var panel = $('#vPanel');
+  if (!pid) { panel.innerHTML = ''; return; }
+  var v = variantOf(p, pid);
+  var html = '';
+  if (pid === 'youtube') {
+    html += '<div class="field"><label>YouTube title <span class="muted" style="text-transform:none">(required to schedule)</span></label>' +
+      '<input id="vYtTitle" maxlength="120" placeholder="Video title (max 100 chars)" value="' + esc(v.title || '') + '"></div>';
+    html += '<div class="field"><label>YouTube description</label>' +
+      '<textarea id="vYtDesc" rows="4" placeholder="Leave empty to use the main caption">' + esc(v.description || '') + '</textarea></div>';
+    html += '<div class="field"><label>Tags <span class="muted" style="text-transform:none">(comma separated, 500 chars total)</span></label>' +
+      '<input id="vYtTags" placeholder="tag one, tag two" value="' + esc(v.tags || '') + '"></div>';
+  } else {
+    var pl = platformById(pid);
+    html += '<div class="field"><label>' + esc(pl.name) + ' caption override</label>' +
+      '<textarea id="vCaption" rows="4" placeholder="Leave empty to use the main caption">' + esc(v.caption || '') + '</textarea></div>';
+    if (pid === 'instagram') {
+      html += '<div class="field"><label>First comment <span class="muted" style="text-transform:none">(extra hashtags often go here)</span></label>' +
+        '<textarea id="vFirstComment" rows="2" placeholder="Posted as the first comment right after publishing">' + esc(v.firstComment || '') + '</textarea></div>';
+    }
+  }
+  panel.innerHTML = html;
+
+  var bind = function (sel, key) {
+    var elx = $(sel);
+    if (!elx) return;
+    elx.addEventListener('input', function () {
+      var vv = ensureVariant(pid);
+      vv[key] = elx.value;
+      if (!elx.value) { delete vv[key]; pruneVariant(pid); }
+      markDirty(); updateCounters();
+      var tabBtn = $('#vTabs [data-vtab="' + pid + '"]');
+      if (tabBtn) {
+        var has = Object.keys(variantOf(App.editing, pid)).some(function (k) { return variantOf(App.editing, pid)[k]; });
+        var mark = tabBtn.querySelector('.editedmark');
+        if (has && !mark) tabBtn.insertAdjacentHTML('beforeend', '<span class="editedmark"></span>');
+        if (!has && mark) mark.remove();
+      }
+    });
+  };
+  bind('#vCaption', 'caption');
+  bind('#vFirstComment', 'firstComment');
+  bind('#vYtTitle', 'title');
+  bind('#vYtDesc', 'description');
+  bind('#vYtTags', 'tags');
+}
+
+/* ---------------- media ---------------- */
+function revokePreviews() {
+  (App.previewUrls || []).forEach(function (u) { try { URL.revokeObjectURL(u); } catch (e) {} });
+  App.previewUrls = [];
+}
+
+function renderMediaRow() {
+  var p = App.editing;
+  var row = $('#mediaRow');
+  revokePreviews();
+  if (!(p.media || []).length) { row.innerHTML = ''; return; }
+  row.innerHTML = p.media.map(function (m, i) {
+    var meta = [];
+    if (m.duration != null) meta.push(fmtDuration(m.duration));
+    if (m.size) meta.push(fmtBytes(m.size));
+    return '<div class="mediacard" data-media="' + i + '">' +
+      '<div class="mthumb" data-mprev="' + i + '" style="display:flex;align-items:center;justify-content:center;color:var(--muted-2)">' +
+        (/^video\//.test(m.type) ? '🎬' : '🖼️') + '</div>' +
+      '<div class="mname" title="' + esc(m.file) + '">' + esc(m.file) + (meta.length ? ' · ' + meta.join(' · ') : '') + '</div>' +
+      '<button type="button" class="mdel" data-mdel="' + i + '" title="Remove">&times;</button>' +
+    '</div>';
+  }).join('');
+
+  p.media.forEach(function (m, i) {
+    getEditingMediaBlob(m.file).then(function (blob) {
+      if (!blob) return;
+      var url = URL.createObjectURL(blob);
+      App.previewUrls.push(url);
+      var slot = $('[data-mprev="' + i + '"]');
+      if (!slot) { return; }
+      if (/^image\//.test(m.type)) {
+        slot.outerHTML = '<img class="mthumb" src="' + url + '" alt="">';
+      } else if (/^video\//.test(m.type)) {
+        slot.outerHTML = '<video class="mthumb" src="' + url + '" muted playsinline></video>';
+      }
+    });
+  });
+
+  $$('#mediaRow [data-mdel]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var i = +btn.getAttribute('data-mdel');
+      var m = App.editing.media[i];
+      if (!m) return;
+      if (App.newMedia.has(m.file)) App.newMedia.delete(m.file);
+      else _removedMedia.push(m.file);
+      App.editing.media.splice(i, 1);
+      if (i === 0) _stagedThumb = App.editing.media.length ? undefined : null;
+      markDirty();
+      renderMediaRow(); runValidation();
+    });
+  });
+}
+
+function getEditingMediaBlob(name) {
+  if (App.newMedia.has(name)) return Promise.resolve(App.newMedia.get(name));
+  if (App.editingIsNew) return Promise.resolve(null);
+  return App.store.getMediaBlob(App.editing, name);
+}
+
+function probeMedia(blob, type) {
+  return new Promise(function (res) {
+    var url = URL.createObjectURL(blob);
+    var done = false;
+    var finish = function (meta) {
+      if (done) return;
+      done = true;
+      URL.revokeObjectURL(url);
+      res(meta || {});
+    };
+    setTimeout(function () { finish({}); }, 4000);
+    if (/^image\//.test(type)) {
+      var img = new Image();
+      img.onload = function () { finish({ width: img.naturalWidth, height: img.naturalHeight }); };
+      img.onerror = function () { finish({}); };
+      img.src = url;
+    } else if (/^video\//.test(type)) {
+      var v = document.createElement('video');
+      v.preload = 'metadata';
+      v.muted = true;
+      v.onloadedmetadata = function () {
+        finish({ duration: isFinite(v.duration) ? v.duration : null, width: v.videoWidth || null, height: v.videoHeight || null });
+      };
+      v.onerror = function () { finish({}); };
+      v.src = url;
+    } else {
+      finish({});
+    }
+  });
+}
+
+function makeThumb(blob, type) {
+  return new Promise(function (res) {
+    var url = URL.createObjectURL(blob);
+    var done = false;
+    var finish = function (out) {
+      if (done) return;
+      done = true;
+      URL.revokeObjectURL(url);
+      res(out || null);
+    };
+    setTimeout(function () { finish(null); }, 5000);
+    function draw(source, w, h) {
+      try {
+        var scale = Math.min(1, 320 / w);
+        var c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(w * scale));
+        c.height = Math.max(1, Math.round(h * scale));
+        c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
+        c.toBlob(function (b) { finish(b); }, 'image/jpeg', 0.78);
+      } catch (e) { finish(null); }
+    }
+    if (/^image\//.test(type)) {
+      var img = new Image();
+      img.onload = function () { draw(img, img.naturalWidth, img.naturalHeight); };
+      img.onerror = function () { finish(null); };
+      img.src = url;
+    } else if (/^video\//.test(type)) {
+      var v = document.createElement('video');
+      v.preload = 'auto';
+      v.muted = true;
+      v.playsInline = true;
+      v.onloadeddata = function () {
+        var t = Math.min(0.5, (v.duration || 1) / 2);
+        var grab = function () { draw(v, v.videoWidth || 320, v.videoHeight || 320); };
+        if (Math.abs(v.currentTime - t) < 0.01) grab();
+        else { v.onseeked = grab; try { v.currentTime = t; } catch (e) { grab(); } }
+      };
+      v.onerror = function () { finish(null); };
+      v.src = url;
+    } else {
+      finish(null);
+    }
+  });
+}
+
+function addMediaFiles(fileList) {
+  var files = Array.prototype.slice.call(fileList || []);
+  if (!files.length) return;
+  var p = App.editing;
+  var chain = Promise.resolve();
+  files.forEach(function (f) {
+    if (!/^(image|video)\//.test(f.type)) {
+      toast('“' + f.name + '” isn’t an image or video — skipped.', 'err');
+      return;
+    }
+    chain = chain.then(function () {
+      var name = sanitizeFileName(f.name);
+      var base = name, dot = name.lastIndexOf('.');
+      var stem = dot > 0 ? name.slice(0, dot) : name, ext = dot > 0 ? name.slice(dot) : '';
+      var n = 2;
+      while (p.media.some(function (m) { return m.file === name; })) {
+        name = stem + '-' + (n++) + ext;
+      }
+      return probeMedia(f, f.type).then(function (meta) {
+        p.media.push({
+          file: name, type: f.type || 'application/octet-stream', size: f.size,
+          duration: meta.duration != null ? Math.round(meta.duration * 10) / 10 : undefined,
+          width: meta.width || undefined, height: meta.height || undefined
+        });
+        App.newMedia.set(name, f);
+        if (p.media.length === 1 || _stagedThumb === undefined) {
+          return makeThumb(f, f.type).then(function (tb) { if (tb) _stagedThumb = tb; });
+        }
+      });
+    });
+  });
+  chain.then(function () {
+    markDirty();
+    renderMediaRow();
+    runValidation();
+  });
+}
+
+function convertImageToJpeg(index) {
+  var p = App.editing;
+  var m = p.media[index];
+  if (!m) return;
+  getEditingMediaBlob(m.file).then(function (blob) {
+    if (!blob) { toast('Couldn’t read that image.', 'err'); return; }
+    var url = URL.createObjectURL(blob);
+    var img = new Image();
+    img.onload = function () {
+      var c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      var ctx = c.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, c.width, c.height); /* transparent PNG -> white background */
+      ctx.drawImage(img, 0, 0);
+      c.toBlob(function (b) {
+        URL.revokeObjectURL(url);
+        if (!b) { toast('Conversion failed.', 'err'); return; }
+        if (!App.newMedia.has(m.file) && !App.editingIsNew) _removedMedia.push(m.file);
+        App.newMedia.delete(m.file);
+        var newName = m.file.replace(/\.[^.]*$/, '') + '.jpg';
+        var n = 2;
+        while (p.media.some(function (x, xi) { return xi !== index && x.file === newName; })) {
+          newName = m.file.replace(/\.[^.]*$/, '') + '-' + (n++) + '.jpg';
+        }
+        m.file = newName; m.type = 'image/jpeg'; m.size = b.size;
+        App.newMedia.set(newName, b);
+        markDirty();
+        renderMediaRow(); runValidation();
+        toast('Converted to JPEG ✓', 'ok');
+      }, 'image/jpeg', 0.92);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); toast('Couldn’t read that image.', 'err'); };
+    img.src = url;
+  });
+}
+
+/* ---------------- validation display ---------------- */
+function runValidation() {
+  var p = App.editing;
+  if (!p) return [];
+  syncWhen();
+  var msgs = validatePost(p, { forSchedule: p.status === 'scheduled' || _pendingSchedule, now: Date.now() });
+  var box = $('#vMsgs');
+  box.innerHTML = msgs.map(function (m, i) {
+    var icon = m.level === 'error' ? '⛔' : m.level === 'warn' ? '⚠️' : 'ℹ️';
+    var fix = '';
+    if (m.code === 'ig-jpeg') {
+      var idx = p.media.findIndex(function (x) { return /^image\//.test(x.type) && x.type !== 'image/jpeg'; });
+      if (idx >= 0) fix = '<button type="button" class="btn small fix" data-fix-jpeg="' + idx + '">Convert to JPEG</button>';
+    }
+    return '<div class="vmsg ' + m.level + '"><span>' + icon + '</span><span>' + esc(m.msg) + '</span>' + fix + '</div>';
+  }).join('');
+  $$('#vMsgs [data-fix-jpeg]').forEach(function (btn) {
+    btn.addEventListener('click', function () { convertImageToJpeg(+btn.getAttribute('data-fix-jpeg')); });
+  });
+  return msgs;
+}
+
+var _pendingSchedule = false;
+
+/* ---------------- save & delete ---------------- */
+function collectFormIntoEditing() {
+  var p = App.editing;
+  p.title = $('#fTitle').value.trim();
+  p.caption = $('#fCaption').value;
+  p.notes = $('#fNotes').value.trim();
+  p.label = $('#fLabel').value;
+  syncWhen();
+}
+
+function saveEditing(targetStatus) {
+  var p = App.editing;
+  if (!p) return Promise.resolve();
+  collectFormIntoEditing();
+  var was = p.status;
+  if (targetStatus) p.status = targetStatus;
+
+  var msgs = validatePost(p, { forSchedule: targetStatus === 'scheduled', now: Date.now() });
+  var errs = msgs.filter(function (m) { return m.level === 'error'; });
+  if (targetStatus === 'scheduled' && errs.length) {
+    p.status = was;
+    /* keep schedule-level validation visible (and live) until issues are fixed */
+    _pendingSchedule = true;
+    runValidation();
+    toast('Fix the ' + (errs.length === 1 ? 'issue' : errs.length + ' issues') + ' in red before scheduling.', 'err');
+    return Promise.resolve();
+  }
+  _pendingSchedule = false;
+  if (targetStatus === 'scheduled') {
+    /* re-scheduling clears old failure flags */
+    Object.keys(p.results || {}).forEach(function (k) {
+      if (p.results[k] && !p.results[k].ok) delete p.results[k];
+    });
+  }
+
+  var doSave = function () {
+    var oldFolderName = (App.store.dirOf && App.store.dirOf[p.id]) ? App.store.dirOf[p.id].name : null;
+    return App.store.savePost(p, App.newMedia).then(function () {
+      var ops = [];
+      _removedMedia.forEach(function (name) {
+        ops.push(App.store.removeMediaFile(p, name));
+      });
+      if (_stagedThumb instanceof Blob) ops.push(App.store.putThumb(p.id, _stagedThumb));
+      return Promise.all(ops);
+    }).then(function () {
+      var i = App.posts.findIndex(function (x) { return x.id === p.id; });
+      if (i >= 0) App.posts[i] = p; else App.posts.push(p);
+      invalidateThumb(p.id);
+      App.newMedia = new Map();
+      _removedMedia = [];
+      _stagedThumb = undefined;
+      _dirty = false;
+      App.editingIsNew = false;
+      App.editingOriginalUpdatedAt = p.updatedAt;
+      maybeAskNotifications(targetStatus);
+      toast(targetStatus === 'scheduled' ? 'Scheduled ✓' : 'Saved ✓', 'ok');
+      closeComposer(true);
+      render();
+      Cloud.onSaved(p, oldFolderName);
+    });
+  };
+
+  /* conflict check: did autopilot (or another window) change this post since we opened it? */
+  var pre = (!App.editingIsNew && App.store.peekPost)
+    ? App.store.peekPost(p.id)
+    : Promise.resolve(null);
+
+  return pre.then(function (onDisk) {
+    if (onDisk && App.editingOriginalUpdatedAt && onDisk.updatedAt !== App.editingOriginalUpdatedAt) {
+      return confirmModal('This post changed on disk',
+        'It looks like autopilot (or another window) updated this post while you were editing. Saving now will overwrite those updates. Save anyway?',
+        'Save anyway').then(function (yes) {
+          if (yes) return doSave();
+          p.status = was;
+        });
+    }
+    return doSave();
+  }).catch(function (err) {
+    p.status = was;
+    toast('Save failed: ' + (err && err.message ? err.message : err), 'err');
+  });
+}
+
+function saveExistingPost(post) {
+  post.updatedAt = new Date().toISOString();
+  var oldFolderName = (App.store.dirOf && App.store.dirOf[post.id]) ? App.store.dirOf[post.id].name : null;
+  return App.store.savePost(post, null).then(function (r) {
+    Cloud.onSaved(post, oldFolderName);
+    return r;
+  });
+}
+
+function deleteEditing() {
+  var p = App.editing;
+  if (!p || App.editingIsNew) return;
+  confirmModal('Delete this post?', '“' + (p.title || 'Untitled') + '” and its media files will be removed' +
+    (App.store.kind === 'folder' ? ' from your folder' : '') + '. This can’t be undone.', 'Delete').then(function (yes) {
+    if (!yes) return;
+    var folderName = (App.store.dirOf && App.store.dirOf[p.id]) ? App.store.dirOf[p.id].name : null;
+    App.store.deletePost(p).then(function () {
+      App.posts = App.posts.filter(function (x) { return x.id !== p.id; });
+      invalidateThumb(p.id);
+      toast('Post deleted', 'ok');
+      closeComposer(true);
+      render();
+      Cloud.onDeleted(folderName);
+    }).catch(function (err) { toast('Delete failed: ' + err.message, 'err'); });
+  });
+}
+
+function duplicateEditing() {
+  var src = App.editing;
+  if (!src || App.editingIsNew) return;
+  if (_dirty) { toast('Save your changes first, then duplicate.', 'err'); return; }
+  var copy = normalizePost(JSON.parse(JSON.stringify(src)));
+  copy.id = uid();
+  copy.title = (src.title || 'Untitled') + ' (copy)';
+  copy.status = 'draft';
+  copy.results = {};
+  copy.createdAt = new Date().toISOString();
+  var mediaCopies = new Map();
+  var chain = Promise.resolve();
+  (src.media || []).forEach(function (m) {
+    chain = chain.then(function () {
+      return App.store.getMediaBlob(src, m.file).then(function (blob) {
+        if (blob) mediaCopies.set(m.file, blob);
+        else copy.media = copy.media.filter(function (x) { return x.file !== m.file; });
+      });
+    });
+  });
+  chain.then(function () {
+    return App.store.savePost(copy, mediaCopies);
+  }).then(function () {
+    return App.store.getThumb(src.id).then(function (tb) {
+      if (tb) return App.store.putThumb(copy.id, tb);
+    });
+  }).then(function () {
+    App.posts.push(copy);
+    Cloud.onSaved(copy, null);
+    toast('Duplicated — opening the copy', 'ok');
+    closeComposer(true);
+    render();
+    openComposer(copy.id);
+  }).catch(function (err) { toast('Duplicate failed: ' + err.message, 'err'); });
+}
+
+function renderLabelSelect() {
+  var sel = $('#fLabel');
+  sel.innerHTML = '<option value="">No label</option>' + (App.settings.labels || []).map(function (l) {
+    return '<option value="' + esc(l.name) + '">' + esc(l.name) + '</option>';
+  }).join('');
+}
+
+/* ============================================================
+   DUE ENGINE — reminders, notifications, the "post now" flow.
+   ============================================================ */
+
+var BASE_TITLE = 'Socials Auto Scheduler';
+var _titleFlasher = null;
+
+function duePosts() {
+  var now = Date.now();
+  return App.posts.filter(function (p) {
+    var ds = dueState(p, now);
+    return ds === 'due' || ds === 'overdue';
+  }).sort(function (a, b) { return postUtcMs(a) - postUtcMs(b); });
+}
+
+function renderDueBanner() {
+  var due = duePosts().filter(function (p) { return !App.dueDismissedIds[p.id]; });
+  var banner = $('#dueBanner');
+  if (!due.length) {
+    banner.classList.add('hidden');
+    stopTitleFlash();
+    return;
+  }
+  banner.classList.remove('hidden');
+  $('#dueText').textContent = due.length === 1
+    ? '“' + (due[0].title || 'Untitled') + '” is due to go out (' + fmtTime12(due[0].when.local) + ')'
+    : due.length + ' posts are due to go out';
+  startTitleFlash(due.length);
+}
+
+function startTitleFlash(n) {
+  if (_titleFlasher) return;
+  var on = false;
+  _titleFlasher = setInterval(function () {
+    document.title = on ? BASE_TITLE : '🔔 ' + n + ' due — ' + BASE_TITLE;
+    on = !on;
+  }, 1200);
+}
+
+function stopTitleFlash() {
+  if (_titleFlasher) { clearInterval(_titleFlasher); _titleFlasher = null; }
+  document.title = BASE_TITLE;
+}
+
+function beep() {
+  try {
+    var Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    var ctx = new Ctx();
+    [0, 0.18].forEach(function (t0) {
+      var o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = 880;
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + t0);
+      g.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t0 + 0.15);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(ctx.currentTime + t0); o.stop(ctx.currentTime + t0 + 0.16);
+    });
+    setTimeout(function () { ctx.close().catch(function () {}); }, 800);
+  } catch (e) {}
+}
+
+function checkDueTick() {
+  var due = duePosts();
+  var newOnes = due.filter(function (p) { return !App.settings.notifiedIds[p.id]; });
+  if (newOnes.length) {
+    newOnes.forEach(function (p) { App.settings.notifiedIds[p.id] = Date.now(); });
+    /* keep the notified ledger from growing forever */
+    var ids = Object.keys(App.settings.notifiedIds);
+    if (ids.length > 400) {
+      ids.sort(function (a, b) { return App.settings.notifiedIds[a] - App.settings.notifiedIds[b]; })
+        .slice(0, ids.length - 200).forEach(function (id) { delete App.settings.notifiedIds[id]; });
+    }
+    App.store.saveSettings(App.settings).catch(function () {});
+    beep();
+    newOnes.forEach(function (p) { systemNotify(p); });
+  }
+  renderDueBanner();
+}
+
+function systemNotify(post) {
+  try {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    var n = new Notification('Time to post: ' + (post.title || 'Untitled'), {
+      body: (post.platforms || []).map(platformDisplayName).join(', ') + ' · ' + fmtTime12(post.when.local),
+      tag: 'sas-' + post.id
+    });
+    n.onclick = function () {
+      try { window.focus(); } catch (e) {}
+      openPostNow(post.id);
+      n.close();
+    };
+  } catch (e) {}
+}
+
+function maybeAskNotifications(targetStatus) {
+  if (targetStatus !== 'scheduled') return;
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'default' || App.settings.askedNotif) return;
+  App.settings.askedNotif = true;
+  App.store.saveSettings(App.settings).catch(function () {});
+  showModal('Get a ping when it’s time?',
+    '<p>While this app is open it can pop a desktop notification (plus a chime) the moment a post is due — handy for TikTok drafts and YouTube uploads.</p>' +
+    '<p class="muted small" style="margin-top:8px">Tip: keep this tab pinned. For posting while your computer is off, set up the GitHub autopilot (see the setup guide in your folder).</p>',
+    [
+      { label: 'Not now', onClick: function () { closeModal(); } },
+      { label: 'Enable notifications', primary: true, onClick: function () {
+          closeModal();
+          Notification.requestPermission().then(function (perm) {
+            toast(perm === 'granted' ? 'Notifications on ✓' : 'Notifications stayed off', perm === 'granted' ? 'ok' : '');
+          });
+        } }
+    ]);
+}
+
+/* ---------------- post-now flow ---------------- */
+var PLATFORM_OPEN_URLS = {
+  instagram: 'https://www.instagram.com/',
+  facebook: 'https://www.facebook.com/',
+  tiktok: 'https://www.tiktok.com/tiktokstudio/upload',
+  youtube: 'https://studio.youtube.com/'
+};
+
+function copyText(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).then(function () { return true; }, function () { return legacyCopy(text); });
+  }
+  return Promise.resolve(legacyCopy(text));
+}
+
+function legacyCopy(text) {
+  try {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch (e) { return false; }
+}
+
+function openDueList() {
+  var due = duePosts();
+  if (!due.length) { toast('Nothing due right now ✓', 'ok'); return; }
+  if (due.length === 1) { openPostNow(due[0].id); return; }
+  var body = due.map(function (p) {
+    return '<div class="lv-row ' + effectiveStatusClass(p) + '" data-pn="' + esc(p.id) + '" style="margin-bottom:7px">' +
+      '<div class="main"><div style="display:flex;gap:8px;align-items:center">' + platformDotsHtml(p) +
+      '<b>' + esc(p.title || 'Untitled') + '</b></div>' +
+      '<div class="cap">' + esc(fmtDateHuman(dateKeyOf(p.when.local))) + ' · ' + esc(fmtTime12(p.when.local)) + '</div></div>' +
+      '<button class="btn small primary">Post now</button></div>';
+  }).join('');
+  showModal('Due to go out', body, [{ label: 'Close', onClick: closeModal }]);
+  $$('#modalBody [data-pn]').forEach(function (row) {
+    row.addEventListener('click', function () { openPostNow(row.getAttribute('data-pn')); });
+  });
+}
+
+function openPostNow(postId) {
+  var post = App.posts.find(function (p) { return p.id === postId; });
+  if (!post) return;
+  var results = post.results || {};
+  var folderEntry = App.store.kind === 'folder' && App.store.dirOf ? App.store.dirOf[post.id] : null;
+
+  var body = '<p class="muted" style="margin-bottom:4px">' +
+    esc(fmtDateHuman(dateKeyOf(post.when.local))) + ' · ' + esc(fmtTime12(post.when.local)) +
+    ((post.media || []).length && folderEntry
+      ? ' &nbsp;·&nbsp; media in <b>content/' + esc(folderEntry.name) + '</b>'
+      : '') + '</p>';
+
+  body += (post.platforms || []).map(function (pid) {
+    var pl = platformById(pid);
+    var done = results[pid] && results[pid].ok;
+    var cap = pid === 'youtube'
+      ? (function (yt) { return 'TITLE: ' + yt.title + '\n\n' + yt.description; })(effectiveYouTube(post))
+      : effectiveCaption(post, pid);
+    var v = variantOf(post, pid);
+    var hint = '';
+    if (pid === 'tiktok') hint = 'Autopilot sends this to your TikTok inbox — or post it by hand now.';
+    if (pid === 'youtube') hint = 'Upload in YouTube Studio and use its “Schedule” option — it’s free and reliable.';
+    var cls = ['instagram','facebook','tiktok','youtube'].indexOf(pid) >= 0 ? pid : 'custom';
+    var dotStyle = cls === 'custom' ? ' style="background:' + esc(pl.color) + '"' : '';
+    return '<div class="pn-plat' + (done ? ' done' : '') + '" data-pid="' + esc(pid) + '">' +
+      '<div class="pn-head"><span class="pdot ' + cls + '"' + dotStyle + '></span>' + esc(pl.name) +
+        (done ? ' <span class="statusbadge sb-published">Posted</span>' : '') +
+        (results[pid] && results[pid].ok === false ? ' <span class="statusbadge sb-failed" title="' + esc(results[pid].error || '') + '">Failed</span>' : '') +
+      '</div>' +
+      (hint ? '<div class="muted small">' + esc(hint) + '</div>' : '') +
+      '<div class="pn-cap">' + esc(cap || '(no caption)') + '</div>' +
+      '<div class="pn-actions">' +
+        '<button class="btn small" data-copy="' + esc(pid) + '">Copy caption</button>' +
+        (pid === 'instagram' && v.firstComment ? '<button class="btn small" data-copyfc="1">Copy first comment</button>' : '') +
+        (PLATFORM_OPEN_URLS[pid] ? '<button class="btn small" data-open="' + esc(pid) + '">Open ' + esc(pl.name) + '</button>' : '') +
+        '<span style="flex:1"></span>' +
+        '<button class="btn small ' + (done ? '' : 'primary') + '" data-markdone="' + esc(pid) + '">' + (done ? 'Undo posted' : 'Mark posted ✓') + '</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+
+  if (App.store.kind !== 'folder' && (post.media || []).length) {
+    body += '<div class="helprow">💾 ' + post.media.map(function (m) {
+      return '<button class="btn small" data-dl="' + esc(m.file) + '">Download ' + esc(m.file) + '</button>';
+    }).join(' ') + '</div>';
+  }
+
+  showModal('Post now — ' + (post.title || 'Untitled'), body, [
+    { label: 'Snooze 1 hour', onClick: function () { snoozePost(post, 60); } },
+    { label: 'Open in editor', onClick: function () { closeModal(); openComposer(post.id); } },
+    { label: 'Done', primary: true, onClick: closeModal }
+  ]);
+
+  $$('#modalBody [data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pid = btn.getAttribute('data-copy');
+      var text = pid === 'youtube' ? effectiveYouTube(post).description : effectiveCaption(post, pid);
+      copyText(text).then(function (ok) { toast(ok ? 'Caption copied ✓' : 'Copy failed — select it manually', ok ? 'ok' : 'err'); });
+    });
+  });
+  var fcBtn = $('#modalBody [data-copyfc]');
+  if (fcBtn) fcBtn.addEventListener('click', function () {
+    copyText(variantOf(post, 'instagram').firstComment || '').then(function (ok) {
+      toast(ok ? 'First comment copied ✓' : 'Copy failed', ok ? 'ok' : 'err');
+    });
+  });
+  $$('#modalBody [data-open]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      window.open(PLATFORM_OPEN_URLS[btn.getAttribute('data-open')], '_blank', 'noopener');
+    });
+  });
+  $$('#modalBody [data-dl]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var name = btn.getAttribute('data-dl');
+      App.store.getMediaBlob(post, name).then(function (blob) {
+        if (!blob) { toast('File not found in storage', 'err'); return; }
+        downloadBlob(blob, name);
+      });
+    });
+  });
+  $$('#modalBody [data-markdone]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pid = btn.getAttribute('data-markdone');
+      post.results = post.results || {};
+      if (post.results[pid] && post.results[pid].ok) {
+        delete post.results[pid];
+        if (post.status === 'published') post.status = 'scheduled';
+      } else {
+        post.results[pid] = { ok: true, manual: true, at: new Date().toISOString() };
+        var allDone = (post.platforms || []).every(function (q) { return post.results[q] && post.results[q].ok; });
+        if (allDone) post.status = 'published';
+      }
+      saveExistingPost(post).then(function () {
+        render();
+        openPostNow(post.id); /* refresh the modal */
+        if (post.status === 'published') toast('All platforms posted — marked Published 🎉', 'ok');
+      }).catch(function (err) { toast('Couldn’t save: ' + err.message, 'err'); });
+    });
+  });
+}
+
+function snoozePost(post, minutes) {
+  var t = postUtcMs(post);
+  var base = isNaN(t) ? Date.now() : Math.max(t, Date.now());
+  var newUtc = base + minutes * 60000;
+  post.when.local = utcToZonedISO(newUtc, post.when.tz || App.settings.tz);
+  delete App.settings.notifiedIds[post.id];
+  saveExistingPost(post).then(function () {
+    App.store.saveSettings(App.settings).catch(function () {});
+    closeModal();
+    toast('Snoozed to ' + fmtTime12(post.when.local), 'ok');
+    render();
+  }).catch(function (err) { toast('Couldn’t snooze: ' + err.message, 'err'); });
+}
+
+function downloadBlob(blob, name) {
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(function () { a.remove(); URL.revokeObjectURL(url); }, 4000);
+}
+
+/* ============================================================
+   APP — settings, backup/restore, welcome screen, boot, wiring.
+   ============================================================ */
+
+/* ---------------- settings modal ---------------- */
+function openSettings(section) {
+  var s = App.settings;
+  var tzList = [];
+  try { tzList = Intl.supportedValuesOf('timeZone'); } catch (e) { tzList = [s.tz]; }
+
+  var body = '' +
+  '<div class="set-section" id="sec-storage"><h3>Storage</h3>' +
+    '<p class="small">' + (App.store.kind === 'folder'
+      ? '📁 Connected to folder <b>' + esc(App.store.label()) + '</b>. Every post lives there as real files — that folder is your backup and manual-posting kit.'
+      : '💾 Using browser storage. Your posts live inside this browser only — connect a folder so every post is saved as real files you can see, copy, and back up.') + '</p>' +
+    '<div class="tagrow">' +
+      (FolderStore.isSupported()
+        ? '<button class="btn small" id="setConnectFolder">' + (App.store.kind === 'folder' ? 'Switch folder…' : 'Connect a folder…') + '</button>'
+        : '<span class="muted small">Folder mode needs Chrome or Edge — this browser only supports browser storage.</span>') +
+      (App.store.kind === 'folder' ? '<button class="btn small" id="setForgetFolder">Disconnect (use browser storage)</button>' : '') +
+    '</div></div>' +
+
+  '<div class="set-section" id="sec-backup"><h3>Backup & restore</h3>' +
+    '<p class="small muted">Last full backup: ' + (s.lastBackup ? esc(new Date(s.lastBackup).toLocaleString()) : 'never') + '</p>' +
+    '<div class="tagrow">' +
+      '<button class="btn small" id="setBackupZip">⬇ Full backup (.zip with media)</button>' +
+      '<button class="btn small" id="setExportJson">⬇ Quick export (.json, no media)</button>' +
+      '<button class="btn small" id="setImport">⬆ Import backup…</button>' +
+    '</div></div>' +
+
+  '<div class="set-section" id="sec-notif"><h3>Reminders</h3>' +
+    '<p class="small muted">Desktop notifications fire while this app is open. Status: <b>' +
+      (!('Notification' in window) ? 'not supported in this browser' : esc(Notification.permission)) + '</b></p>' +
+    (('Notification' in window) && Notification.permission === 'default'
+      ? '<button class="btn small" id="setAskNotif">Enable notifications</button>' : '') +
+    (('Notification' in window) && Notification.permission === 'denied'
+      ? '<p class="small muted">Notifications are blocked — allow them for this page in your browser’s site settings.</p>' : '') +
+  '</div>' +
+
+  '<div class="set-section" id="sec-tz"><h3>Timezone</h3>' +
+    '<p class="small muted">New posts schedule in this timezone (existing posts keep theirs).</p>' +
+    '<input id="setTz" list="tzlist" value="' + esc(s.tz) + '" style="max-width:320px">' +
+    '<datalist id="tzlist">' + tzList.map(function (z) { return '<option value="' + esc(z) + '">'; }).join('') + '</datalist>' +
+  '</div>' +
+
+  '<div class="set-section" id="sec-labels"><h3>Labels</h3>' +
+    '<div class="tagrow" id="setLabels"></div>' +
+    '<div class="tagrow"><input id="newLabelName" placeholder="New label name" style="max-width:180px">' +
+    '<input type="color" id="newLabelColor" value="#f472b6" style="padding:2px;width:44px;height:34px">' +
+    '<button class="btn small" id="addLabelBtn">Add</button></div>' +
+  '</div>' +
+
+  '<div class="set-section" id="sec-hashtags"><h3>Hashtag sets</h3>' +
+    '<p class="small muted">One-click hashtag bundles for the composer.</p>' +
+    '<div id="setHashGroups"></div>' +
+    '<div class="tagrow"><input id="newHashName" placeholder="Set name (e.g. Fitness)" style="max-width:160px">' +
+    '<input id="newHashTags" placeholder="#fit #gym #health…" style="flex:1;min-width:160px">' +
+    '<button class="btn small" id="addHashBtn">Add</button></div>' +
+  '</div>' +
+
+  '<div class="set-section" id="sec-platforms"><h3>Extra platforms</h3>' +
+    '<p class="small muted">Add any other network (Pinterest, X, LinkedIn…). They get reminders and the manual posting flow.</p>' +
+    '<div class="tagrow" id="setCustomPlats"></div>' +
+    '<div class="tagrow"><input id="newPlatName" placeholder="Platform name" style="max-width:180px">' +
+    '<input type="color" id="newPlatColor" value="#9aa4b8" style="padding:2px;width:44px;height:34px">' +
+    '<button class="btn small" id="addPlatBtn">Add</button></div>' +
+  '</div>' +
+
+  '<div class="set-section" id="sec-cloud"><h3>&#9729;&#65039; Auto-publish (no GitHub Desktop)</h3>' +
+    '<p class="small">With this on, hitting <b>Schedule</b> sends the post straight to your private GitHub repo and the robot posts it automatically &mdash; you never open GitHub Desktop.</p>' +
+    '<p class="small" id="cloudState"></p>' +
+    '<div style="display:flex;flex-direction:column;gap:8px;max-width:540px">' +
+      '<label class="small">Repository (owner/name)<br><input id="setCloudRepo" placeholder="brianthayermortgages/Socials-Auto-Scheduler" style="width:100%"></label>' +
+      '<label class="small">Access token &mdash; fine-grained, with <b>Contents: Read and write</b><br><input id="setCloudToken" type="password" placeholder="github_pat_&hellip;" style="width:100%" autocomplete="off"></label>' +
+      '<div class="tagrow">' +
+        '<button class="btn small" id="setCloudSave">Save &amp; test</button>' +
+        '<button class="btn small" id="setCloudSync">Sync all now</button>' +
+        '<button class="btn small" id="setCloudClear">Turn off</button>' +
+      '</div>' +
+      '<p class="small muted">The token is stored only in this browser &mdash; never written to your folder or the repo. Need one? GitHub &rarr; Settings &rarr; Developer settings &rarr; Fine-grained tokens &rarr; Generate, give it access to only this repo with <b>Contents: Read and write</b>.</p>' +
+    '</div>' +
+  '</div>' +
+
+  '<div class="set-section" id="sec-autopilot"><h3>Autopilot (hands-free posting)</h3>' +
+    '<p class="small">A free GitHub robot posts your <b>scheduled</b> Instagram &amp; Facebook posts automatically and delivers TikToks to your phone as ready-to-tap drafts &mdash; even when this computer is off. With <b>Auto-publish</b> (above) on, you never touch GitHub Desktop.</p>' +
+    '<p class="small muted">Full setup notes live in <b>docs/SETUP-AUTOPILOT.md</b> in your folder.</p>' +
+  '</div>';
+
+  showModal('Settings', body, [{ label: 'Done', primary: true, onClick: function () { saveSettingsFromModal(); } }]);
+
+  renderSettingsLists();
+
+  var cf = $('#setConnectFolder');
+  if (cf) cf.addEventListener('click', function () { connectFolderFlow(); });
+  var ff = $('#setForgetFolder');
+  if (ff) ff.addEventListener('click', function () {
+    confirmModal('Disconnect folder?', 'The files stay safely in your folder — the app just stops using them and switches to empty browser storage. Reconnect any time.', 'Disconnect').then(function (yes) {
+      if (!yes) return;
+      try { localStorage.setItem('sas-mode', 'browser'); } catch (e) {}
+      FolderStore.forgetHandle().then(function () { location.reload(); });
+    });
+  });
+  $('#setBackupZip').addEventListener('click', function () { downloadBackupZip(); });
+  $('#setExportJson').addEventListener('click', function () { exportJson(); });
+  $('#setImport').addEventListener('click', function () { $('#importInput').click(); });
+  var an = $('#setAskNotif');
+  if (an) an.addEventListener('click', function () {
+    Notification.requestPermission().then(function () { openSettings('notif'); });
+  });
+  $('#addLabelBtn').addEventListener('click', function () {
+    var name = $('#newLabelName').value.trim();
+    if (!name) return;
+    if (s.labels.some(function (l) { return l.name === name; })) { toast('That label already exists', 'err'); return; }
+    s.labels.push({ name: name, color: $('#newLabelColor').value });
+    $('#newLabelName').value = '';
+    persistSettings(); renderSettingsLists(); populateFilters();
+  });
+  $('#addHashBtn').addEventListener('click', function () {
+    var name = $('#newHashName').value.trim(), tags = $('#newHashTags').value.trim();
+    if (!name || !tags) return;
+    s.hashGroups.push({ name: name, tags: tags });
+    $('#newHashName').value = ''; $('#newHashTags').value = '';
+    persistSettings(); renderSettingsLists();
+  });
+  $('#addPlatBtn').addEventListener('click', function () {
+    var name = $('#newPlatName').value.trim();
+    if (!name) return;
+    var id = 'custom-' + slugify(name);
+    if (allPlatforms().some(function (p) { return p.id === id || p.name.toLowerCase() === name.toLowerCase(); })) {
+      toast('That platform already exists', 'err'); return;
+    }
+    s.customPlatforms.push({ id: id, name: name, color: $('#newPlatColor').value });
+    $('#newPlatName').value = '';
+    persistSettings(); renderSettingsLists(); populateFilters();
+  });
+
+  /* ---- cloud auto-publish controls ---- */
+  (function () {
+    var repoEl = $('#setCloudRepo'), tokEl = $('#setCloudToken'), stateEl = $('#cloudState');
+    if (!repoEl) return;
+    function refreshState() {
+      if (!stateEl) return;
+      if (Cloud.configured()) {
+        stateEl.innerHTML = '<b style="color:#86efac">On</b> &middot; ' + esc(Cloud.cfg.repo) +
+          (Cloud.queue.length ? (' &middot; <b style="color:#fca5a5">' + Cloud.queue.length + ' waiting to sync</b>') : '');
+      } else {
+        stateEl.innerHTML = '<b style="color:#fca5a5">Off</b> &mdash; fill in the two fields, then Save &amp; test.';
+      }
+    }
+    repoEl.value = (Cloud.cfg && Cloud.cfg.repo) || '';
+    if (tokEl) tokEl.value = (Cloud.cfg && Cloud.cfg.token) || '';
+    refreshState();
+    var saveBtn = $('#setCloudSave');
+    if (saveBtn) saveBtn.addEventListener('click', function () {
+      var repo = (repoEl.value || '').trim().replace(/^https?:\/\/github\.com\//, '').replace(/\.git$/, '').replace(/\/+$/, '');
+      var tok = (tokEl.value || '').trim();
+      if (!/^[^/]+\/[^/]+$/.test(repo)) { toast('Enter the repository as owner/name', 'err'); return; }
+      if (!tok) { toast('Paste your access token', 'err'); return; }
+      var prev = Cloud.cfg;
+      Cloud.cfg = { repo: repo, token: tok, branch: (prev && prev.branch) || 'main' };
+      saveBtn.disabled = true; saveBtn.textContent = 'Testing…';
+      Cloud.ping().then(function () {
+        Cloud.persist(); setCloudStatus('ok'); refreshState();
+        toast('Cloud connected ✓ — scheduling now auto-publishes', 'ok');
+      }).catch(function (err) {
+        Cloud.cfg = prev;
+        toast('Couldn’t connect: ' + (err && err.message ? err.message : err), 'err');
+      }).then(function () { saveBtn.disabled = false; saveBtn.textContent = 'Save & test'; });
+    });
+    var syncBtn = $('#setCloudSync');
+    if (syncBtn) syncBtn.addEventListener('click', function () {
+      if (!Cloud.configured()) { toast('Connect the cloud first', 'err'); return; }
+      syncBtn.disabled = true; syncBtn.textContent = 'Syncing…';
+      Cloud.syncAll().then(function () { toast('Everything synced ✓', 'ok'); })
+        .catch(function (err) { toast('Sync issue: ' + (err && err.message ? err.message : err), 'err'); })
+        .then(function () { syncBtn.disabled = false; syncBtn.textContent = 'Sync all now'; refreshState(); });
+    });
+    var clearBtn = $('#setCloudClear');
+    if (clearBtn) clearBtn.addEventListener('click', function () {
+      Cloud.cfg = null; Cloud.persist(); setCloudStatus('ok'); refreshState();
+      if (tokEl) tokEl.value = '';
+      toast('Auto-publish turned off', 'ok');
+    });
+  })();
+
+  if (section) {
+    var target = $('#sec-' + section);
+    if (target) setTimeout(function () { target.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 60);
+  }
+}
+
+function renderSettingsLists() {
+  var s = App.settings;
+  var lbl = $('#setLabels');
+  if (lbl) {
+    lbl.innerHTML = s.labels.map(function (l, i) {
+      return '<span class="chip"><span class="dot" style="background:' + esc(l.color) + '"></span>' + esc(l.name) +
+        '<button data-dellabel="' + i + '" title="Remove">&times;</button></span>';
+    }).join('') || '<span class="muted small">No labels yet</span>';
+    $$('#setLabels [data-dellabel]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        s.labels.splice(+b.getAttribute('data-dellabel'), 1);
+        persistSettings(); renderSettingsLists(); populateFilters();
+      });
+    });
+  }
+  var hg = $('#setHashGroups');
+  if (hg) {
+    hg.innerHTML = s.hashGroups.map(function (g, i) {
+      return '<div class="tagrow" style="margin-bottom:6px"><span class="chip" style="max-width:100%"># ' + esc(g.name) +
+        '<button data-delhash="' + i + '" title="Remove">&times;</button></span>' +
+        '<span class="muted small" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px">' + esc(g.tags) + '</span></div>';
+    }).join('') || '<span class="muted small">No hashtag sets yet</span>';
+    $$('#setHashGroups [data-delhash]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        s.hashGroups.splice(+b.getAttribute('data-delhash'), 1);
+        persistSettings(); renderSettingsLists();
+      });
+    });
+  }
+  var cp = $('#setCustomPlats');
+  if (cp) {
+    cp.innerHTML = s.customPlatforms.map(function (p, i) {
+      return '<span class="chip"><span class="dot" style="background:' + esc(p.color) + '"></span>' + esc(p.name) +
+        '<button data-delplat="' + i + '" title="Remove">&times;</button></span>';
+    }).join('') || '<span class="muted small">None added</span>';
+    $$('#setCustomPlats [data-delplat]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var i = +b.getAttribute('data-delplat');
+        var pid = s.customPlatforms[i].id;
+        var used = App.posts.filter(function (p) { return p.platforms.indexOf(pid) >= 0; }).length;
+        var go = function () {
+          s.customPlatforms.splice(i, 1);
+          persistSettings(); renderSettingsLists(); populateFilters();
+        };
+        if (used) {
+          confirmModal('Remove platform?', used + ' post(s) use it — they’ll keep it listed but it won’t be selectable for new posts.', 'Remove').then(function (y) { if (y) go(); });
+        } else go();
+      });
+    });
+  }
+}
+
+function saveSettingsFromModal() {
+  var tzInput = $('#setTz');
+  if (tzInput) {
+    var z = tzInput.value.trim();
+    try {
+      new Intl.DateTimeFormat('en-US', { timeZone: z });
+      App.settings.tz = z;
+    } catch (e) {
+      toast('“' + z + '” isn’t a valid timezone — keeping ' + App.settings.tz, 'err');
+    }
+  }
+  persistSettings();
+  closeModal();
+  render();
+}
+
+function persistSettings() {
+  App.store.saveSettings(App.settings).catch(function (err) {
+    toast('Couldn’t save settings: ' + err.message, 'err');
+  });
+}
+
+/* ---------------- backup & restore ---------------- */
+function collectBackupEntries() {
+  var enc = new TextEncoder();
+  var entries = [{
+    name: 'manifest.json',
+    data: enc.encode(JSON.stringify({ app: 'socials-auto-scheduler', schemaVersion: SCHEMA_VERSION, exportedAt: new Date().toISOString(), posts: App.posts.length }, null, 2))
+  }, {
+    name: 'settings.json',
+    data: enc.encode(JSON.stringify(App.settings, null, 2))
+  }];
+  var chain = Promise.resolve();
+  var usedNames = {};
+  App.posts.forEach(function (p) {
+    /* two posts can share a date+title — keep every one of them distinct in the zip */
+    var base = folderNameFor(p), folder = base, suffix = 98;
+    while (usedNames[folder]) {
+      folder = base + '-' + String.fromCharCode(suffix++);
+      if (suffix > 122) { folder = base + '-' + p.id; break; }
+    }
+    usedNames[folder] = true;
+    var dir = 'content/' + folder + '/';
+    entries.push({ name: dir + 'post.json', data: enc.encode(JSON.stringify(p, null, 2)) });
+    var human = buildHumanFiles(p);
+    Object.keys(human).forEach(function (name) {
+      entries.push({ name: dir + name, data: enc.encode(human[name]) });
+    });
+    (p.media || []).forEach(function (m) {
+      chain = chain.then(function () {
+        return App.store.getMediaBlob(p, m.file).then(function (blob) {
+          if (!blob) return;
+          return blob.arrayBuffer().then(function (buf) {
+            entries.push({ name: dir + m.file, data: new Uint8Array(buf) });
+          });
+        });
+      });
+    });
+  });
+  return chain.then(function () { return entries; });
+}
+
+function downloadBackupZip() {
+  toast('Building backup…');
+  collectBackupEntries().then(function (entries) {
+    var total = entries.reduce(function (a, e) { return a + e.data.length; }, 0);
+    if (total > 3.5 * 1073741824) {
+      toast('Backup is over 3.5 GB — too big for a .zip. Copy your whole folder instead (it IS the backup).', 'err');
+      return;
+    }
+    var zip = buildZip(entries);
+    var d = new Date();
+    var name = 'socials-backup-' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '-' + pad2(d.getHours()) + pad2(d.getMinutes()) + '.zip';
+    downloadBlob(new Blob([zip], { type: 'application/zip' }), name);
+    App.settings.lastBackup = new Date().toISOString();
+    persistSettings();
+    toast('Backup downloaded ✓ (' + fmtBytes(zip.length) + ')', 'ok');
+  }).catch(function (err) {
+    toast('Backup failed: ' + (err && err.message ? err.message : err), 'err');
+  });
+}
+
+function exportJson() {
+  var data = { app: 'socials-auto-scheduler', schemaVersion: SCHEMA_VERSION, exportedAt: new Date().toISOString(), settings: App.settings, posts: App.posts };
+  var d = new Date();
+  var name = 'socials-export-' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '.json';
+  downloadBlob(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), name);
+  toast('Export downloaded ✓ (captions & schedule only — media stays in your folder/backups)', 'ok');
+}
+
+function handleImportFile(file) {
+  if (!file) return;
+  if (/\.json$/i.test(file.name)) {
+    file.text().then(function (txt) {
+      var data = JSON.parse(txt);
+      var posts = (data.posts || []).map(normalizePost);
+      if (!posts.length) { toast('No posts found in that file.', 'err'); return; }
+      confirmModal('Import ' + posts.length + ' posts?',
+        'Posts with matching IDs are updated to whichever copy is newer; everything else is added. Media files aren’t in .json exports — import the .zip backup for those.', 'Import').then(function (yes) {
+        if (!yes) return;
+        mergePosts(posts, null).then(function (stats) {
+          mergeSettings(data.settings);
+          toast('Imported: ' + stats.added + ' added, ' + stats.updated + ' updated ✓', 'ok');
+          populateFilters(); render();
+        });
+      });
+    }).catch(function (err) { toast('Couldn’t read that file: ' + err.message, 'err'); });
+  } else if (/\.zip$/i.test(file.name)) {
+    file.arrayBuffer().then(function (buf) {
+      var entries = parseZip(new Uint8Array(buf));
+      var dec = new TextDecoder();
+      var byDir = {};
+      var settings = null;
+      entries.forEach(function (e) {
+        if (e.name === 'settings.json') { try { settings = JSON.parse(dec.decode(e.data)); } catch (x) {} return; }
+        var m = /^content\/([^\/]+)\/(.+)$/.exec(e.name);
+        if (!m) return;
+        (byDir[m[1]] = byDir[m[1]] || []).push({ name: m[2], data: e.data });
+      });
+      var posts = [], mediaMaps = {};
+      Object.keys(byDir).forEach(function (dir) {
+        var pj = byDir[dir].find(function (f) { return f.name === 'post.json'; });
+        if (!pj) return;
+        try {
+          var p = normalizePost(JSON.parse(dec.decode(pj.data)));
+          posts.push(p);
+          var mm = new Map();
+          (p.media || []).forEach(function (m2) {
+            var f = byDir[dir].find(function (x) { return x.name === m2.file; });
+            if (f) mm.set(m2.file, new Blob([f.data], { type: m2.type || 'application/octet-stream' }));
+          });
+          mediaMaps[p.id] = mm;
+        } catch (x) {}
+      });
+      if (!posts.length) { toast('No posts found in that backup.', 'err'); return; }
+      confirmModal('Restore ' + posts.length + ' posts from backup?',
+        'Posts with matching IDs are updated to whichever copy is newer; everything else is added — media files included.', 'Restore').then(function (yes) {
+        if (!yes) return;
+        toast('Restoring…');
+        mergePosts(posts, mediaMaps).then(function (stats) {
+          mergeSettings(settings);
+          toast('Restored: ' + stats.added + ' added, ' + stats.updated + ' updated ✓', 'ok');
+          populateFilters(); render();
+        }).catch(function (err) { toast('Restore failed: ' + err.message, 'err'); });
+      });
+    }).catch(function (err) { toast('Couldn’t read that zip: ' + (err && err.message ? err.message : err), 'err'); });
+  } else {
+    toast('Import a .json export or .zip backup made by this app.', 'err');
+  }
+}
+
+function mergePosts(incoming, mediaMaps) {
+  var added = 0, updated = 0;
+  var chain = Promise.resolve();
+  incoming.forEach(function (p) {
+    chain = chain.then(function () {
+      var existing = App.posts.find(function (x) { return x.id === p.id; });
+      var mm = mediaMaps ? (mediaMaps[p.id] || new Map()) : null;
+      if (existing) {
+        if ((existing.updatedAt || '') >= (p.updatedAt || '')) {
+          /* ours is newer — still pull in any media files we don't have */
+          if (mm && mm.size) return App.store.savePost(existing, mm);
+          return;
+        }
+        updated++;
+        var i = App.posts.indexOf(existing);
+        App.posts[i] = p;
+        return App.store.savePost(p, mm);
+      }
+      added++;
+      App.posts.push(p);
+      return App.store.savePost(p, mm);
+    });
+  });
+  return chain.then(function () { return { added: added, updated: updated }; });
+}
+
+function mergeSettings(incoming) {
+  if (!incoming) return;
+  var s = App.settings;
+  (incoming.labels || []).forEach(function (l) {
+    if (l && l.name && !s.labels.some(function (x) { return x.name === l.name; })) s.labels.push({ name: l.name, color: l.color || '#9aa4b8' });
+  });
+  (incoming.hashGroups || []).forEach(function (g) {
+    if (g && g.name && !s.hashGroups.some(function (x) { return x.name === g.name; })) s.hashGroups.push({ name: g.name, tags: g.tags || '' });
+  });
+  (incoming.customPlatforms || []).forEach(function (p) {
+    if (p && p.id && !s.customPlatforms.some(function (x) { return x.id === p.id; })) s.customPlatforms.push(p);
+  });
+  persistSettings();
+}
+
+/* ---------------- folder connection ---------------- */
+function verifyPermission(handle) {
+  return handle.queryPermission({ mode: 'readwrite' }).then(function (p) {
+    if (p === 'granted') return true;
+    return handle.requestPermission({ mode: 'readwrite' }).then(function (p2) { return p2 === 'granted'; });
+  });
+}
+
+function connectFolderFlow() {
+  if (!FolderStore.isSupported()) {
+    toast('Folder mode needs Chrome or Edge.', 'err');
+    return;
+  }
+  window.showDirectoryPicker({ mode: 'readwrite' }).then(function (handle) {
+    return verifyPermission(handle).then(function (ok) {
+      if (!ok) { toast('Folder permission was declined.', 'err'); return; }
+      var oldStore = App.store, oldPosts = App.posts.slice();
+      try { localStorage.removeItem('sas-mode'); } catch (e) {}
+      var fs = new FolderStore(handle);
+      return fs.init().then(function () {
+        return FolderStore.saveHandle(handle);
+      }).then(function () {
+        return switchToStore(fs);
+      }).then(function () {
+        closeModal();
+        /* offer migration when the folder is empty but browser storage had posts */
+        if (oldStore && oldStore.kind === 'browser' && oldPosts.length && App.posts.length === 0) {
+          confirmModal('Move your ' + oldPosts.length + ' posts into the folder?',
+            'They’ll be written as real files (post.json + captions + media) inside “' + (handle.name || 'your folder') + '/content”.', 'Move them').then(function (yes) {
+            if (!yes) return;
+            var chain = Promise.resolve();
+            oldPosts.forEach(function (p) {
+              chain = chain.then(function () {
+                var mm = new Map();
+                var sub = Promise.resolve();
+                (p.media || []).forEach(function (m) {
+                  sub = sub.then(function () {
+                    return oldStore.getMediaBlob(p, m.file).then(function (b) { if (b) mm.set(m.file, b); });
+                  });
+                });
+                return sub.then(function () {
+                  return App.store.savePost(p, mm);
+                }).then(function () {
+                  return oldStore.getThumb(p.id).then(function (tb) { if (tb) return App.store.putThumb(p.id, tb); });
+                }).then(function () {
+                  App.posts.push(p);
+                });
+              });
+            });
+            chain.then(function () {
+              toast('Moved ' + oldPosts.length + ' posts into your folder ✓', 'ok');
+              render();
+            }).catch(function (err) { toast('Move hit a snag: ' + err.message, 'err'); });
+          });
+        }
+      });
+    });
+  }).catch(function (err) {
+    if (err && err.name === 'AbortError') return; /* user cancelled the picker */
+    toast('Couldn’t open that folder: ' + (err && err.message ? err.message : err), 'err');
+  });
+}
+
+function switchToStore(store) {
+  App.store = store;
+  App.thumbUrls = {};
+  return store.getSettings().then(function (s) {
+    if (s) {
+      App.settings = Object.assign(defaultSettings(), s);
+      App.settings.notifiedIds = App.settings.notifiedIds || {};
+    } else {
+      App.settings = App.settings || defaultSettings();
+      return store.saveSettings(App.settings);
+    }
+  }).then(function () {
+    return store.listPosts();
+  }).then(function (r) {
+    App.posts = r.posts;
+    r.problems.forEach(function (msg) { toast(msg, 'err'); });
+    updateStorageChip();
+    populateFilters();
+    render();
+    setCloudStatus('ok');
+    if (Cloud.configured()) {
+      Cloud.pullStatuses();
+      Cloud.retryQueue();
+    }
+  });
+}
+
+function updateStorageChip() {
+  var chip = $('#storageChip');
+  if (App.store && App.store.kind === 'folder') {
+    chip.className = 'chip storage-chip connected';
+    chip.innerHTML = '📁 ' + esc(App.store.label());
+    chip.title = 'Your posts live as real files in this folder. Click for storage settings.';
+  } else {
+    chip.className = 'chip storage-chip browser';
+    chip.innerHTML = '💾 Browser storage — connect a folder';
+    chip.title = 'Posts are inside this browser only. Click to connect a real folder.';
+  }
+}
+
+/* ---------------- welcome ---------------- */
+function renderWelcome(reconnectHandle) {
+  var html = '<div class="welcome">' +
+    '<div class="logo" style="font-size:19px"><span class="glyph" style="width:38px;height:38px;font-size:19px">✈</span> Socials Auto Scheduler</div>' +
+    '<p class="muted">Plan a month and a half of Instagram, Facebook, TikTok & YouTube in one calendar. Everything is saved as real files you own — nothing leaves your computer.</p>';
+  if (reconnectHandle) {
+    html += '<div class="opt" id="optReconnect"><span class="ic">📁</span><div>' +
+      '<h3>Continue with “' + esc(reconnectHandle.name || 'your folder') + '”</h3>' +
+      '<p>Pick up right where you left off (your browser will ask you to allow access again — one click).</p></div></div>';
+  }
+  if (FolderStore.isSupported()) {
+    html += '<div class="opt" id="optFolder"><span class="ic">🗂️</span><div>' +
+      '<h3>' + (reconnectHandle ? 'Use a different folder…' : 'Connect your folder (recommended)') + '</h3>' +
+      '<p>Choose your “Socials Auto Scheduler” folder. Every post becomes a dated folder with the video, captions and details inside — your filing system and backup in one.</p></div></div>';
+  }
+  html += '<div class="opt" id="optBrowser"><span class="ic">⚡</span><div>' +
+    '<h3>Quick start with browser storage</h3>' +
+    '<p>Jump straight in. You can connect a folder later from Settings' +
+    (FolderStore.isSupported() ? '' : ' (folder mode needs Chrome or Edge)') + '.</p></div></div>';
+  html += '</div>';
+  $('#main').innerHTML = html;
+  $('#navLabel').textContent = 'Welcome';
+
+  var rc = $('#optReconnect');
+  if (rc) rc.addEventListener('click', function () {
+    verifyPermission(reconnectHandle).then(function (ok) {
+      if (!ok) { toast('Folder permission was declined — choose an option below.', 'err'); return; }
+      var fs = new FolderStore(reconnectHandle);
+      fs.init().then(function () { return switchToStore(fs); }).then(finishBoot)
+        .catch(function (err) { toast('Couldn’t open the folder: ' + err.message, 'err'); });
+    });
+  });
+  var of = $('#optFolder');
+  if (of) of.addEventListener('click', function () {
+    window.showDirectoryPicker({ mode: 'readwrite' }).then(function (handle) {
+      return verifyPermission(handle).then(function (ok) {
+        if (!ok) { toast('Folder permission was declined.', 'err'); return; }
+        var fs = new FolderStore(handle);
+        return fs.init().then(function () { return FolderStore.saveHandle(handle); })
+          .then(function () { return switchToStore(fs); }).then(finishBoot);
+      });
+    }).catch(function (err) {
+      if (err && err.name !== 'AbortError') toast('Couldn’t open that folder: ' + err.message, 'err');
+    });
+  });
+  $('#optBrowser').addEventListener('click', function () {
+    try { localStorage.setItem('sas-mode', 'browser'); } catch (e) {}
+    new IdbStore().init().then(function (store) {
+      return switchToStore(store);
+    }).then(finishBoot).catch(function (err) { toast('Storage error: ' + err.message, 'err'); });
+  });
+}
+
+/* ---------------- boot ---------------- */
+function finishBoot() {
+  if (App.bootDone) return;
+  App.bootDone = true;
+  setInterval(checkDueTick, 30000);
+  checkDueTick();
+  /* refresh from disk when the window regains focus (autopilot may have updated posts) */
+  var lastFocusReload = 0;
+  window.addEventListener('focus', function () {
+    if (!App.store || App.store.kind !== 'folder' || App.editing) return;
+    var now = Date.now();
+    if (now - lastFocusReload < 8000) return;
+    lastFocusReload = now;
+    App.store.listPosts().then(function (r) {
+      App.posts = r.posts;
+      App.thumbUrls = {};
+      render();
+      if (Cloud.configured()) { Cloud.pullStatuses(); Cloud.retryQueue(); }
+    }).catch(function () {});
+  });
+}
+
+function wireStaticEvents() {
+  $$('#viewSeg button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      App.view = btn.getAttribute('data-view');
+      try { localStorage.setItem('sas-view', App.view); } catch (e) {}
+      $$('#viewSeg button').forEach(function (b) { b.classList.toggle('active', b === btn); });
+      render();
+    });
+  });
+  $('#navPrev').addEventListener('click', function () { stepCursor(-1); });
+  $('#navNext').addEventListener('click', function () { stepCursor(1); });
+  $('#navToday').addEventListener('click', function () { App.cursor = new Date(); render(); });
+  $('#newPostBtn').addEventListener('click', function () {
+    if (!App.bootDone) { toast('Choose where to keep your posts first (one of the options below).', 'err'); return; }
+    openComposer(null, null);
+  });
+  $('#settingsBtn').addEventListener('click', function () {
+    if (!App.bootDone) { toast('Pick a storage option first.', 'err'); return; }
+    openSettings();
+  });
+  $('#backupBtn').addEventListener('click', function () {
+    if (!App.bootDone) return;
+    downloadBackupZip();
+  });
+  $('#storageChip').addEventListener('click', function () {
+    if (!App.bootDone) return;
+    openSettings('storage');
+  });
+  var cloudChipEl = $('#cloudChip');
+  if (cloudChipEl) cloudChipEl.addEventListener('click', function () {
+    if (!App.bootDone) return;
+    if (Cloud.queue.length) {
+      Cloud.retryQueue().then(function () { toast(Cloud.queue.length ? 'Some posts still need syncing — check Settings → Auto-publish' : 'Cloud sync complete ✓', Cloud.queue.length ? 'err' : 'ok'); });
+    } else openSettings('cloud');
+  });
+
+  ['fltPlatform', 'fltStatus', 'fltLabel'].forEach(function (id) {
+    $('#' + id).addEventListener('change', function () {
+      App.filters.platform = $('#fltPlatform').value;
+      App.filters.status = $('#fltStatus').value;
+      App.filters.label = $('#fltLabel').value;
+      render();
+    });
+  });
+  var searchTimer = null;
+  $('#fltSearch').addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () {
+      App.filters.q = $('#fltSearch').value.trim();
+      render();
+    }, 180);
+  });
+
+  $('#dueReview').addEventListener('click', openDueList);
+  $('#dueDismiss').addEventListener('click', function () {
+    duePosts().forEach(function (p) { App.dueDismissedIds[p.id] = true; });
+    renderDueBanner();
+  });
+
+  /* drawer */
+  $('#drawerClose').addEventListener('click', function () { closeComposer(); });
+  $('#scrim').addEventListener('click', function () { closeComposer(); });
+  $('#saveDraftBtn').addEventListener('click', function () {
+    saveEditing(App.editing && App.editing.status === 'published' ? 'published' : 'draft');
+  });
+  $('#saveReadyBtn').addEventListener('click', function () { saveEditing('ready'); });
+  $('#scheduleBtn').addEventListener('click', function () { saveEditing('scheduled'); });
+  $('#deleteBtn').addEventListener('click', deleteEditing);
+  $('#duplicateBtn').addEventListener('click', duplicateEditing);
+
+  ['fTitle', 'fCaption', 'fNotes'].forEach(function (id) {
+    $('#' + id).addEventListener('input', function () {
+      collectFormIntoEditing();
+      markDirty();
+      if (id === 'fCaption') updateCounters();
+    });
+  });
+  $('#fLabel').addEventListener('change', function () { collectFormIntoEditing(); markDirty(); });
+  $('#fDate').addEventListener('change', function () { syncWhen(); markDirty(); renderBestTimes(); });
+  $('#fTime').addEventListener('change', function () { syncWhen(); markDirty(); });
+
+  /* media */
+  $('#dropzone').addEventListener('click', function () { $('#fileInput').click(); });
+  $('#fileInput').addEventListener('change', function () {
+    addMediaFiles(this.files);
+    this.value = '';
+  });
+  var dz = $('#dropzone');
+  ['dragover', 'dragenter'].forEach(function (ev) {
+    dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add('dragover'); });
+  });
+  ['dragleave', 'drop'].forEach(function (ev) {
+    dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('dragover'); });
+  });
+  dz.addEventListener('drop', function (e) {
+    if (e.dataTransfer && e.dataTransfer.files) addMediaFiles(e.dataTransfer.files);
+  });
+  /* don't let stray drops navigate the page away */
+  window.addEventListener('dragover', function (e) { e.preventDefault(); });
+  window.addEventListener('drop', function (e) { e.preventDefault(); });
+
+  /* modal */
+  $('#modalClose').addEventListener('click', closeModal);
+  $('#modalWrap').addEventListener('click', function (e) {
+    if (e.target === this) closeModal();
+  });
+
+  /* import */
+  $('#importInput').addEventListener('change', function () {
+    if (this.files && this.files[0]) handleImportFile(this.files[0]);
+    this.value = '';
+  });
+
+  /* keyboard */
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      if ($('#modalWrap').classList.contains('open')) { closeModal(); return; }
+      if ($('#drawer').classList.contains('open')) closeComposer();
+      return;
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's' && $('#drawer').classList.contains('open')) {
+      e.preventDefault();
+      saveEditing(App.editing ? (App.editing.status === 'published' ? 'published' : App.editing.status) : 'draft');
+    }
+  });
+
+  window.addEventListener('beforeunload', function (e) {
+    if (_dirty && $('#drawer').classList.contains('open')) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+}
+
+function stepCursor(dir) {
+  var c = App.cursor;
+  if (App.view === 'week') App.cursor = new Date(c.getFullYear(), c.getMonth(), c.getDate() + 7 * dir);
+  else App.cursor = new Date(c.getFullYear(), c.getMonth() + dir, 1);
+  render();
+}
+
+function boot() {
+  try { App.view = localStorage.getItem('sas-view') || 'month'; } catch (e) {}
+  $$('#viewSeg button').forEach(function (b) {
+    b.classList.toggle('active', b.getAttribute('data-view') === App.view);
+  });
+  App.settings = defaultSettings();
+  Cloud.load();
+  wireStaticEvents();
+  updateStorageChip();
+  setCloudStatus('ok');
+
+  FolderStore.loadHandle().then(function (handle) {
+    if (handle && FolderStore.isSupported()) {
+      return handle.queryPermission({ mode: 'readwrite' }).then(function (perm) {
+        if (perm === 'granted') {
+          var fs = new FolderStore(handle);
+          return fs.init().then(function () { return switchToStore(fs); }).then(finishBoot)
+            .catch(function (err) {
+              toast('Couldn’t open your folder (' + err.message + ') — choose again.', 'err');
+              renderWelcome(null);
+            });
+        }
+        renderWelcome(handle);
+      }, function () { renderWelcome(null); });
+    }
+    /* no saved folder: resume browser storage if it was chosen before or has posts */
+    var mode = null;
+    try { mode = localStorage.getItem('sas-mode'); } catch (e) {}
+    return new IdbStore().init().then(function (store) {
+      return store.listPosts().then(function (r) {
+        if (mode === 'browser' || r.posts.length) {
+          return switchToStore(store).then(finishBoot);
+        }
+        renderWelcome(null);
+      });
+    });
+  }).catch(function () {
+    renderWelcome(null);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', boot);
+
+</script>
+</body>
+</html>
